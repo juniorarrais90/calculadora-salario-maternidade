@@ -9,6 +9,7 @@
 <title>Calculadora de Salário-Maternidade · Arrais Advogados</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%230D2340'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.35em' font-family='Arial,sans-serif' font-size='18' font-weight='bold' fill='%23C9A84C'%3EA%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
   :root {
     --navy: #0D2340;
@@ -236,6 +237,9 @@
   .btn-primary:hover { background: var(--gold-light); }
   .btn-secondary { background: white; color: var(--navy); border: 1px solid var(--gray-2); }
   .btn-secondary:hover { background: var(--gray-1); }
+  .btn-pdf { background: var(--navy); color: white; }
+  .btn-pdf:hover { background: var(--navy-light); }
+  .btn-pdf:disabled { opacity: 0.6; cursor: wait; }
 
   #resultado { display: none; }
   #resultado.show { display: block; }
@@ -968,6 +972,8 @@
 
       <div class="actions">
         <button class="btn btn-secondary" id="btn_voltar">← Voltar e Editar</button>
+        <button class="btn btn-pdf" id="btn_pdf_interno" title="Salva PDF completo para a pasta interna da cliente">📄 PDF Interno</button>
+        <button class="btn btn-pdf" id="btn_pdf_cliente" title="Salva PDF com orientações para entregar à cliente">📋 PDF Cliente</button>
         <button class="btn btn-primary" id="btn_nova">Nova Análise</button>
       </div>
     </section>
@@ -976,13 +982,13 @@
   <footer>
     <strong>ARRAIS ADVOGADOS · OAB/MG 19.391</strong> · Ferramenta de uso interno · Não substitui análise jurídica individualizada<br>
     Base normativa: Lei 8.213/91 · IN PRES/INSS 128/2022 · ADIs 2.110 e 2.111/STF · IN 188/2025<br>
-    <span style="opacity:0.6">v3.2.1 · maio/2026</span>
+    <span style="opacity:0.6">v3.3 · maio/2026</span>
   </footer>
 </div>
 
 <script>
 // =====================================================================
-// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.2.1
+// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.3
 // Lógica jurídica:
 // - ADIs 2.110 e 2.111 (STF, j. 21/03/2024, ac. publ. 24/05/2024)
 // - IN 188/2025: isenção aplicada a requerimentos a partir de 05/04/2024
@@ -1847,6 +1853,14 @@ function analisar() {
     cenarioProtetivo = analisarCenarioProtetivo(categoria, vinculos, dataParto, qualidadeAtual);
     cenarioProtetivo = ajustarCenarioProtetivoComPerda(cenarioProtetivo, dataParto);
   }
+
+  // Armazenar dados globalmente para geração de PDFs
+  window.__analiseAtual = {
+    categoria, fatoGerador, dataParto, vinculos,
+    qualidade: qualidadeAtual, contribTotal,
+    duplo: ehDuploCenario, protetivo: cenarioProtetivo,
+    nomeCliente: $('#nome_cliente').value || 'Cliente'
+  };
 
   renderizar(categoria, fatoGerador, dataParto, qualidadeAtual, contribTotal, ehDuploCenario, cenarioProtetivo);
   showSection('resultado');
@@ -2767,10 +2781,328 @@ function renderDetalhesTecnicos(categoria, qualidade, dataParto, contribTotal, d
   `;
 }
 
+// ============================================================================
+// GERAÇÃO DE PDF — v3.3
+// Dois PDFs distintos:
+//   1. PDF Interno: documento completo para a pasta da cliente (uso interno)
+//   2. PDF Cliente: orientação leiga, 1 página, sem informações sensíveis
+// Biblioteca: html2pdf.js (carregada no head)
+// ============================================================================
+
+function slugificar(texto) {
+  return (texto || 'Cliente')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 50);
+}
+
+function dataParaArquivo() {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}`;
+}
+
+function cabecalhoPDF() {
+  return `
+    <div style="border-bottom:3px solid #C9A84C;padding-bottom:14px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:18pt;font-weight:bold;color:#0D2340;letter-spacing:0.5px;">ARRAIS ADVOGADOS</div>
+        <div style="font-size:9pt;color:#4a4a52;margin-top:2px;">Sociedade de Advogados · OAB/MG 19.391</div>
+      </div>
+      <div style="text-align:right;font-size:9pt;color:#4a4a52;">
+        <div>Análise de Salário-Maternidade</div>
+        <div>Gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+      </div>
+    </div>
+  `;
+}
+
+function rodapePDF(tipo) {
+  const texto = tipo === 'interno'
+    ? 'DOCUMENTO DE USO INTERNO — não substitui análise jurídica individualizada. Resultado preliminar baseado nos dados informados.'
+    : 'ARRAIS ADVOGADOS · OAB/MG 19.391 · Direito Previdenciário e Trabalhista';
+  return `
+    <div style="border-top:2px solid #C9A84C;padding-top:10px;margin-top:18px;text-align:center;font-size:8pt;color:#4a4a52;">
+      ${texto}
+    </div>
+  `;
+}
+
+function gerarPDFInterno() {
+  const a = window.__analiseAtual;
+  if (!a) { alert('Faça uma análise primeiro.'); return; }
+
+  const btn = $('#btn_pdf_interno');
+  btn.disabled = true;
+  btn.textContent = '⏳ Gerando PDF...';
+
+  // Capturar o conteúdo do resultado (já renderizado na tela)
+  const veredicto = $('#resultado-final-container').innerHTML;
+  const atencao = $('#atencao-container').innerHTML;
+  const explicacao = $('#explicacao-container').innerHTML;
+  const planoAcao = $('#plano-acao-container').innerHTML;
+  const financeiro = $('#financeiro-container').innerHTML;
+  // Detalhes técnicos: extrair conteúdo de dentro do <details>, sempre expandido
+  const detalhesRaw = $('#detalhes-tecnicos-container').innerHTML;
+  const detalhes = detalhesRaw.replace(/<details[^>]*>/g, '<div>').replace(/<\/details>/g, '</div>').replace(/<summary[^>]*>.*?<\/summary>/g, '');
+
+  // Bloco identificador do caso
+  const dataPartoBR = a.dataParto.toLocaleDateString('pt-BR');
+  const categoriaLabel = {
+    'empregada': 'Empregada CLT', 'domestica': 'Doméstica', 'avulsa': 'Avulsa',
+    'individual': 'Contribuinte Individual', 'facultativa': 'Facultativa',
+    'mei': 'MEI', 'especial': 'Segurada Especial', 'desempregada': 'Desempregada (período de graça)'
+  }[a.categoria] || a.categoria;
+
+  const cabecalhoCaso = `
+    <div style="background:#f7f7f8;border-left:4px solid #0D2340;padding:12px 16px;margin-bottom:16px;border-radius:4px;">
+      <div style="font-size:13pt;font-weight:bold;color:#0D2340;margin-bottom:8px;">DADOS DO CASO</div>
+      <table style="width:100%;font-size:10pt;border-collapse:collapse;">
+        <tr><td style="padding:3px 0;color:#4a4a52;width:40%;">Cliente:</td><td style="padding:3px 0;font-weight:bold;">${a.nomeCliente}</td></tr>
+        <tr><td style="padding:3px 0;color:#4a4a52;">Categoria:</td><td style="padding:3px 0;">${categoriaLabel}</td></tr>
+        <tr><td style="padding:3px 0;color:#4a4a52;">Fato gerador:</td><td style="padding:3px 0;">${a.fatoGerador === 'parto' ? 'Parto' : 'Adoção'} previsto para ${dataPartoBR}</td></tr>
+        <tr><td style="padding:3px 0;color:#4a4a52;">Vínculos analisados:</td><td style="padding:3px 0;">${a.vinculos.length}</td></tr>
+      </table>
+    </div>
+  `;
+
+  // Estilo específico para o PDF (sobrescrever cores escuras de fundo para impressão)
+  const cssPDF = `
+    <style>
+      body { font-family: Arial, sans-serif; color: #1a1a1f; font-size: 10pt; line-height: 1.5; }
+      .resultado-final { padding:14px 16px;border-radius:6px;margin-bottom:14px; }
+      .resultado-final.verde { background:#e8f5eb;border-left:4px solid #2d7a3e; }
+      .resultado-final.amarelo { background:#fdf5e0;border-left:4px solid #b8860b; }
+      .resultado-final.vermelho { background:#fbeaea;border-left:4px solid #a83232; }
+      .resultado-icone { font-size:18pt;display:block;margin-bottom:6px; }
+      .resultado-titulo { font-size:13pt;font-weight:bold;color:#0D2340;margin-bottom:6px; }
+      .resultado-subtitulo { font-size:10pt;color:#1a1a1f; }
+      .plano-acao { margin:14px 0; }
+      .plano-acao h3 { color:#0D2340;font-size:13pt;border-bottom:2px solid #C9A84C;padding-bottom:6px;margin-bottom:12px; }
+      .secao-acao { background:#f7f7f8;border-left:3px solid #C9A84C;padding:12px 14px;margin-bottom:10px;border-radius:4px; }
+      .secao-titulo { font-weight:bold;color:#0D2340;margin-bottom:8px;font-size:11pt; }
+      .icone-sec { margin-right:6px; }
+      ol, ul { padding-left: 22px; }
+      li { margin-bottom: 6px; }
+      .destaque { background:#fdf5e0;padding:1px 4px;border-radius:3px;font-weight:bold; }
+      .financeiro-bloco { background:#f7f7f8;padding:12px;border-radius:4px;margin-bottom:10px; }
+      .financeiro-titulo { font-size:12pt;font-weight:bold;color:#0D2340;margin-bottom:8px; }
+      .calc-linha { display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dotted #d0d0d6;font-size:9.5pt; }
+      .calc-linha.positivo .valor { color:#2d7a3e;font-weight:bold; }
+      .calc-linha.negativo .valor { color:#a83232; }
+      .calc-linha.total { font-weight:bold;border-top:2px solid #0D2340;border-bottom:none;padding-top:6px;margin-top:4px;font-size:10.5pt; }
+      .formula { font-size:8pt;color:#9b9ba3;display:block;margin-top:2px; }
+      .plano-card { background:white;border:1px solid #d0d0d6;border-radius:4px;padding:10px;margin-bottom:8px; }
+      .plano-card.recomendado { border-left:3px solid #2d7a3e; }
+      .plano-titulo { font-weight:bold;color:#0D2340;margin-bottom:4px; }
+      .plano-valor { font-size:12pt;font-weight:bold;color:#0D2340; }
+      .plano-codigo { font-size:8.5pt;color:#4a4a52;margin-top:3px; }
+      .plano-observacao { font-size:8.5pt;color:#4a4a52;margin-top:4px;font-style:italic; }
+      .data-row { display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dotted #e5e5ea;font-size:9pt; }
+      .label { color:#4a4a52; }
+      .value { font-weight:bold; }
+      .value.ok { color:#2d7a3e; }
+      .value.no { color:#a83232; }
+      .atencao-pos-eleicao { background:#fdf5e0;border-left:4px solid #b8860b;padding:12px 14px;border-radius:4px;margin-bottom:14px;font-size:9.5pt; }
+      .aviso-urgencia { background:#a83232;color:white;padding:12px 14px;border-radius:4px;margin-bottom:14px; }
+      .aviso-urgencia-titulo { font-weight:bold;font-size:11pt; }
+      .aviso-urgencia-texto { font-size:9.5pt;margin-top:4px; }
+      p { margin: 6px 0; }
+      strong { color: #0D2340; }
+      .total-investimento { font-size:9pt;color:#4a4a52;font-weight:normal;display:block;margin-top:3px; }
+      .badge { background:#2d7a3e;color:white;padding:1px 6px;border-radius:3px;font-size:8pt;font-weight:normal; }
+      .secao-resultado h3 { color:#0D2340;font-size:13pt;border-bottom:2px solid #C9A84C;padding-bottom:6px;margin-top:14px;margin-bottom:10px; }
+      .explicacao { font-size:10pt; }
+    </style>
+  `;
+
+  const html = `
+    <div style="padding:0;font-family:Arial,sans-serif;">
+      ${cabecalhoPDF()}
+      ${cabecalhoCaso}
+      ${veredicto}
+      ${atencao}
+      <h3 style="color:#0D2340;border-bottom:2px solid #C9A84C;padding-bottom:6px;font-size:13pt;">SITUAÇÃO DO CASO</h3>
+      ${explicacao}
+      ${planoAcao}
+      <h3 style="color:#0D2340;border-bottom:2px solid #C9A84C;padding-bottom:6px;font-size:13pt;page-break-before:auto;">ANÁLISE FINANCEIRA</h3>
+      ${financeiro}
+      <h3 style="color:#0D2340;border-bottom:2px solid #C9A84C;padding-bottom:6px;font-size:13pt;">DETALHES TÉCNICOS E FUNDAMENTAÇÃO JURÍDICA</h3>
+      ${detalhes}
+      ${rodapePDF('interno')}
+    </div>
+  `;
+
+  const container = document.createElement('div');
+  container.innerHTML = cssPDF + html;
+  container.style.width = '210mm';
+  container.style.padding = '15mm';
+  container.style.boxSizing = 'border-box';
+
+  const opt = {
+    margin: 0,
+    filename: `Analise-SM-${slugificar(a.nomeCliente)}-${dataParaArquivo()}.pdf`,
+    image: { type: 'jpeg', quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+  };
+
+  html2pdf().set(opt).from(container).save().then(() => {
+    btn.disabled = false;
+    btn.innerHTML = '📄 PDF Interno';
+  }).catch(err => {
+    console.error('Erro ao gerar PDF:', err);
+    alert('Erro ao gerar PDF: ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = '📄 PDF Interno';
+  });
+}
+
+function gerarPDFCliente() {
+  const a = window.__analiseAtual;
+  if (!a) { alert('Faça uma análise primeiro.'); return; }
+
+  const btn = $('#btn_pdf_cliente');
+  btn.disabled = true;
+  btn.textContent = '⏳ Gerando PDF...';
+
+  const pNome = a.nomeCliente.split(' ')[0];
+  const dataPartoBR = a.dataParto.toLocaleDateString('pt-BR');
+
+  // Determinar mensagem da cliente conforme cenário (sem juridiquês, sem estratégia)
+  let mensagemSituacao = '';
+  let proximosPassos = [];
+  let documentos = [];
+
+  // Replicar a lógica de classificação de cenários (versão simplificada)
+  const q = a.qualidade;
+  const duplo = a.duplo;
+  let cenarioId;
+  if (!q.temQualidade) cenarioId = duplo ? 'F' : 'B';
+  else if (a.protetivo && a.protetivo.isenta) cenarioId = 'A';
+  else if (!duplo) cenarioId = 'A';
+  else if (a.protetivo && a.protetivo.faltam === 0) cenarioId = 'C';
+  else if (a.protetivo && a.protetivo.viavel) cenarioId = 'D';
+  else cenarioId = 'E';
+
+  const isAdocao = a.fatoGerador === 'adocao';
+  const fatoLabel = isAdocao ? 'da adoção' : 'do nascimento do seu bebê';
+  const dataLabel = isAdocao ? 'a data prevista da guarda' : 'a data prevista do parto';
+
+  if (cenarioId === 'A' || cenarioId === 'C') {
+    mensagemSituacao = `Você tem direito ao salário-maternidade. Pela análise dos seus dados e ${dataLabel} (${dataPartoBR}), preenche todos os requisitos exigidos pela lei para receber o benefício.`;
+    proximosPassos = [
+      'Aguardar o nascimento do seu bebê (ou a guarda judicial, no caso de adoção).',
+      'Nos avisar assim que possível para iniciarmos o pedido junto ao INSS.',
+      'Nossa equipe cuidará de toda a parte burocrática para você.',
+      'O valor do benefício será depositado diretamente na sua conta.'
+    ];
+  } else if (cenarioId === 'B') {
+    mensagemSituacao = `Sua situação previdenciária precisa de uma pequena regularização antes de pedirmos o benefício. A boa notícia é que isso é simples e rápido de resolver, e você pode garantir seu direito ao salário-maternidade.`;
+    proximosPassos = [
+      'Realizar a contribuição ao INSS que orientamos no atendimento (nossa equipe te explicou os valores e como pagar).',
+      'Após o pagamento, sua qualidade de segurada será regularizada.',
+      'Nos avisar quando o bebê nascer para iniciarmos o pedido do benefício.',
+      'Nossa equipe cuidará de toda a parte burocrática junto ao INSS.'
+    ];
+  } else if (cenarioId === 'D' || cenarioId === 'E') {
+    mensagemSituacao = `Você tem direito ao salário-maternidade pelas regras atuais. Como ${dataLabel} (${dataPartoBR}) ainda está distante, vamos trabalhar com um planejamento preventivo para garantir que seu direito esteja totalmente protegido até lá.`;
+    proximosPassos = [
+      'Seguir o plano de contribuições mensais que nossa equipe te explicou no atendimento.',
+      'Manter o pagamento em dia até o nascimento do seu bebê.',
+      'Nos avisar quando o bebê nascer para iniciarmos o pedido do benefício.',
+      'Nossa equipe acompanhará todo o processo junto ao INSS.'
+    ];
+  } else if (cenarioId === 'F') {
+    mensagemSituacao = `Sua situação previdenciária precisa de uma regularização. A boa notícia é que ainda temos tempo até ${dataLabel} (${dataPartoBR}), e com um planejamento simples você pode garantir o seu direito ao salário-maternidade.`;
+    proximosPassos = [
+      'Seguir o plano de contribuições que nossa equipe te explicou no atendimento.',
+      'Manter o pagamento em dia até o nascimento do bebê.',
+      'Nos avisar quando o bebê nascer para iniciarmos o pedido.',
+      'Nossa equipe cuidará de toda a parte burocrática junto ao INSS.'
+    ];
+  }
+
+  documentos = [
+    'RG e CPF (cópias)',
+    'Comprovante de residência atualizado',
+    'Carteira de trabalho (se tiver)',
+    `Certidão de nascimento do bebê ${isAdocao ? '/ termo de guarda judicial' : ''} (assim que disponível)`,
+    'Dados bancários para depósito do benefício'
+  ];
+
+  const html = `
+    <div style="padding:0;font-family:Arial,sans-serif;color:#1a1a1f;">
+      ${cabecalhoPDF()}
+
+      <div style="background:#f7f7f8;border-left:4px solid #C9A84C;padding:14px 18px;margin-bottom:18px;border-radius:4px;">
+        <div style="font-size:14pt;font-weight:bold;color:#0D2340;margin-bottom:6px;">Olá, ${pNome}!</div>
+        <div style="font-size:10pt;color:#4a4a52;">Aqui está um resumo do seu atendimento sobre o salário-maternidade.</div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12pt;font-weight:bold;color:#0D2340;border-bottom:2px solid #C9A84C;padding-bottom:5px;margin-bottom:10px;">Sobre o seu caso</div>
+        <p style="font-size:10.5pt;line-height:1.6;text-align:justify;">${mensagemSituacao}</p>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12pt;font-weight:bold;color:#0D2340;border-bottom:2px solid #C9A84C;padding-bottom:5px;margin-bottom:10px;">Próximos passos</div>
+        <ol style="font-size:10.5pt;line-height:1.7;padding-left:22px;">
+          ${proximosPassos.map(p => `<li style="margin-bottom:5px;">${p}</li>`).join('')}
+        </ol>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12pt;font-weight:bold;color:#0D2340;border-bottom:2px solid #C9A84C;padding-bottom:5px;margin-bottom:10px;">Documentos que vamos precisar</div>
+        <ul style="font-size:10.5pt;line-height:1.7;padding-left:22px;">
+          ${documentos.map(d => `<li style="margin-bottom:4px;">${d}</li>`).join('')}
+        </ul>
+      </div>
+
+      <div style="background:#0D2340;color:white;padding:14px 18px;border-radius:4px;margin-bottom:16px;">
+        <div style="font-size:11pt;font-weight:bold;margin-bottom:6px;">Fale com a gente</div>
+        <div style="font-size:9.5pt;line-height:1.6;">
+          Qualquer dúvida, entre em contato com a nossa equipe pelo WhatsApp ou pelos canais de atendimento que você já tem.
+          Estamos aqui para cuidar do seu caso do início ao fim — você não precisa se preocupar com a burocracia do INSS.
+        </div>
+      </div>
+
+      ${rodapePDF('cliente')}
+    </div>
+  `;
+
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  container.style.width = '210mm';
+  container.style.padding = '20mm';
+  container.style.boxSizing = 'border-box';
+
+  const opt = {
+    margin: 0,
+    filename: `Orientacao-SM-${slugificar(a.nomeCliente)}.pdf`,
+    image: { type: 'jpeg', quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+
+  html2pdf().set(opt).from(container).save().then(() => {
+    btn.disabled = false;
+    btn.innerHTML = '📋 PDF Cliente';
+  }).catch(err => {
+    console.error('Erro ao gerar PDF:', err);
+    alert('Erro ao gerar PDF: ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = '📋 PDF Cliente';
+  });
+}
+
 $('#btn_analisar').addEventListener('click', analisar);
 $('#btn_voltar').addEventListener('click', () => showSection('entrada'));
 $('#btn_nova').addEventListener('click', () => { if (confirm('Limpar todos os dados e iniciar nova análise?')) location.reload(); });
 $('#btn_limpar').addEventListener('click', () => { if (confirm('Limpar todos os campos?')) location.reload(); });
+$('#btn_pdf_interno').addEventListener('click', gerarPDFInterno);
+$('#btn_pdf_cliente').addEventListener('click', gerarPDFCliente);
 </script>
 
 </body>
