@@ -961,8 +961,8 @@
         <div id="resultado-final-container"></div>
         <div id="atencao-container"></div>
         <div id="explicacao-container"></div>
-        <div id="financeiro-container"></div>
         <div id="plano-acao-container"></div>
+        <div id="financeiro-container"></div>
         <div id="detalhes-tecnicos-container"></div>
       </div>
 
@@ -976,13 +976,13 @@
   <footer>
     <strong>ARRAIS ADVOGADOS · OAB/MG 19.391</strong> · Ferramenta de uso interno · Não substitui análise jurídica individualizada<br>
     Base normativa: Lei 8.213/91 · IN PRES/INSS 128/2022 · ADIs 2.110 e 2.111/STF · IN 188/2025<br>
-    <span style="opacity:0.6">v3.1 · maio/2026</span>
+    <span style="opacity:0.6">v3.2 · maio/2026</span>
   </footer>
 </div>
 
 <script>
 // =====================================================================
-// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.1
+// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.2
 // Lógica jurídica:
 // - ADIs 2.110 e 2.111 (STF, j. 21/03/2024, ac. publ. 24/05/2024)
 // - IN 188/2025: isenção aplicada a requerimentos a partir de 05/04/2024
@@ -2291,12 +2291,22 @@ function renderPlanoAcao(cenarioId, categoria, qualidade, dataParto, protetivo) 
   // ===========================================================
   else if (cenarioId === 'B') {
     const podeRecuperarQualidade = totalCompetencias >= 1;
+    const proximaCompetencia = competenciasPagaveis[0]; // primeira competência ainda pagável
     let acoes = [];
 
     if (podeRecuperarQualidade) {
       acoes.push(`<li><strong>${pNome} NÃO tem qualidade de segurada hoje</strong>, mas a recuperação é simples: <strong>basta 1 contribuição em dia</strong> antes do parto. Há <strong>${totalCompetencias} competências GPS pagáveis</strong> até o parto.</li>`);
       acoes.push(`<li><strong>Fechar contrato</strong> com a cliente para planejamento previdenciário + requerimento administrativo do salário-maternidade.</li>`);
-      acoes.push(`<li><strong>Orientar pagamento da próxima competência GPS</strong> (vencimento dia 15 do mês seguinte). Valores e códigos no bloco financeiro abaixo.</li>`);
+
+      // Destaque de URGÊNCIA — quando parto é iminente, pagamento precisa ser HOJE
+      if (iminente && proximaCompetencia) {
+        const vencimentoStr = formatDate(proximaCompetencia.vencimento);
+        acoes.push(`<li><strong style="color:#b91c1c">⚠️ PAGAMENTO URGENTE — gerar e pagar HOJE a GPS</strong> da competência <strong>${proximaCompetencia.label}</strong> (vencimento ${vencimentoStr}). Dado o parto iminente, a operação não suporta atraso: a GPS precisa estar paga e processada antes do fato gerador, sob risco de o INSS não reconhecer a qualidade recuperada no momento do requerimento. Valores e códigos no bloco financeiro abaixo.</li>`);
+      } else if (proximaCompetencia) {
+        const vencimentoStr = formatDate(proximaCompetencia.vencimento);
+        acoes.push(`<li><strong>Orientar pagamento da próxima competência GPS</strong> — competência ${proximaCompetencia.label} (vencimento até ${vencimentoStr}). Valores e códigos no bloco financeiro abaixo.</li>`);
+      }
+
       acoes.push(`<li><strong>Após a contribuição</strong>, a cliente recupera a qualidade de segurada. Pela regra atual do STF (ADIs 2.110 e 2.111, IN 188/2025), basta isso para ter direito ao SM — não há mais exigência de carência.</li>`);
       acoes.push(`<li><strong>Após o nascimento</strong>, protocolar requerimento administrativo pelo escritório.</li>`);
       acoes.push(`<li><strong>Em caso de indeferimento</strong>, ajuizar ação com tutela de urgência fundamentada nas ADIs 2.110 e 2.111.</li>`);
@@ -2740,28 +2750,4 @@ function renderDetalhesTecnicos(categoria, qualidade, dataParto, contribTotal, d
   }
 
   $('#detalhes-tecnicos-container').innerHTML = `
-    <details class="detalhes-tecnicos">
-      <summary>Mostrar fundamentação jurídica e dados técnicos</summary>
-      <div class="detalhes-tecnicos-body">
-        <div class="bloco-tecnico">
-          <h5>Dados quantitativos da análise</h5>
-          ${dadosTecnicos.join('')}
-        </div>
-        ${blocoProtetivo}
-        <div class="bloco-tecnico">
-          <h5>Fundamentos normativos e jurisprudenciais aplicados</h5>
-          <ul>${fundamentos.map(f => `<li>${f}</li>`).join('')}</ul>
-        </div>
-      </div>
-    </details>
-  `;
-}
-
-$('#btn_analisar').addEventListener('click', analisar);
-$('#btn_voltar').addEventListener('click', () => showSection('entrada'));
-$('#btn_nova').addEventListener('click', () => { if (confirm('Limpar todos os dados e iniciar nova análise?')) location.reload(); });
-$('#btn_limpar').addEventListener('click', () => { if (confirm('Limpar todos os campos?')) location.reload(); });
-</script>
-
-</body>
-</html>
+    <details class="detalhes-tecnic
