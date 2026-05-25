@@ -2750,4 +2750,28 @@ function renderDetalhesTecnicos(categoria, qualidade, dataParto, contribTotal, d
   }
 
   $('#detalhes-tecnicos-container').innerHTML = `
-    <details class="detalhes-tecnic
+    <details class="detalhes-tecnicos">
+      <summary>Mostrar fundamentação jurídica e dados técnicos</summary>
+      <div class="detalhes-tecnicos-body">
+        <div class="bloco-tecnico">
+          <h5>Dados quantitativos da análise</h5>
+          ${dadosTecnicos.join('')}
+        </div>
+        ${blocoProtetivo}
+        <div class="bloco-tecnico">
+          <h5>Fundamentos normativos e jurisprudenciais aplicados</h5>
+          <ul>${fundamentos.map(f => `<li>${f}</li>`).join('')}</ul>
+        </div>
+      </div>
+    </details>
+  `;
+}
+
+$('#btn_analisar').addEventListener('click', analisar);
+$('#btn_voltar').addEventListener('click', () => showSection('entrada'));
+$('#btn_nova').addEventListener('click', () => { if (confirm('Limpar todos os dados e iniciar nova análise?')) location.reload(); });
+$('#btn_limpar').addEventListener('click', () => { if (confirm('Limpar todos os campos?')) location.reload(); });
+</script>
+
+</body>
+</html>
