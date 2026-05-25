@@ -976,13 +976,13 @@
   <footer>
     <strong>ARRAIS ADVOGADOS · OAB/MG 19.391</strong> · Ferramenta de uso interno · Não substitui análise jurídica individualizada<br>
     Base normativa: Lei 8.213/91 · IN PRES/INSS 128/2022 · ADIs 2.110 e 2.111/STF · IN 188/2025<br>
-    <span style="opacity:0.6">v3.2 · maio/2026</span>
+    <span style="opacity:0.6">v3.2.1 · maio/2026</span>
   </footer>
 </div>
 
 <script>
 // =====================================================================
-// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.2
+// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.2.1
 // Lógica jurídica:
 // - ADIs 2.110 e 2.111 (STF, j. 21/03/2024, ac. publ. 24/05/2024)
 // - IN 188/2025: isenção aplicada a requerimentos a partir de 05/04/2024
@@ -2086,7 +2086,7 @@ function renderizar(categoria, fatoGerador, dataParto, qualidade, contribTotal, 
   renderResultadoFinal(cenarioId, dataParto);
   renderAtencaoPosEleicao(cenarioId, dataParto);
   renderExplicacao(cenarioId, categoria, qualidade, dataParto, protetivo);
-  renderFinanceiro(cenarioId, categoria, fatoGerador, qualidade, protetivo);
+  renderFinanceiro(cenarioId, categoria, fatoGerador, qualidade, protetivo, dataParto);
   renderPlanoAcao(cenarioId, categoria, qualidade, dataParto, protetivo);
   renderDetalhesTecnicos(categoria, qualidade, dataParto, contribTotal, duplo, protetivo, cenarioId);
 }
@@ -2493,7 +2493,7 @@ function renderPlanoAcao(cenarioId, categoria, qualidade, dataParto, protetivo) 
 }
 
 // ====== BLOCO FINANCEIRO ===================================================
-function renderFinanceiro(cenarioId, categoria, fatoGerador, qualidade, protetivo) {
+function renderFinanceiro(cenarioId, categoria, fatoGerador, qualidade, protetivo, dataParto) {
   // Não exibir bloco financeiro se a cliente claramente não tem direito (B e F sem plano)
   // mas SEMPRE mostrar quanto ela vai receber, para fortalecer o argumento de planejamento
   const fin = calcularResultadoFinanceiro(categoria, fatoGerador);
