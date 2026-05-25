@@ -1,0 +1,3129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Ferramenta interna do escritório Arrais Advogados para análise de qualidade de segurada e carência em casos de salário-maternidade.">
+<meta name="author" content="Arrais Advogados — OAB/MG 19.391">
+<title>Calculadora de Salário-Maternidade · Arrais Advogados</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%230D2340'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.35em' font-family='Arial,sans-serif' font-size='18' font-weight='bold' fill='%23C9A84C'%3EA%3C/text%3E%3C/svg%3E">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+  :root {
+    --navy: #0D2340;
+    --navy-light: #1a3358;
+    --navy-soft: #e8ecf2;
+    --gold: #C9A84C;
+    --gold-light: #E5C46A;
+    --gold-soft: #faf6e8;
+    --green: #2d7a3e;
+    --green-soft: #e8f5eb;
+    --red: #a83232;
+    --red-soft: #fbeaea;
+    --amber: #b8860b;
+    --amber-soft: #fdf5e0;
+    --gray-1: #f7f7f8;
+    --gray-2: #e5e5ea;
+    --gray-3: #9b9ba3;
+    --gray-4: #4a4a52;
+    --text: #1a1a1f;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: Arial, sans-serif;
+    background: var(--gray-1);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 24px 16px;
+    min-height: 100vh;
+  }
+
+  .container { max-width: 1100px; margin: 0 auto; }
+
+  header {
+    background: var(--navy);
+    color: white;
+    padding: 24px 32px;
+    border-top: 4px solid var(--gold);
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  header h1 { font-size: 22px; font-weight: bold; letter-spacing: 0.5px; }
+  header .subtitle { font-size: 12px; color: var(--gold-light); margin-top: 4px; letter-spacing: 1px; text-transform: uppercase; }
+  header .firm { text-align: right; font-size: 11px; color: rgba(255,255,255,0.7); line-height: 1.4; }
+  header .firm strong { color: var(--gold); font-size: 13px; display: block; margin-bottom: 2px; }
+
+  main {
+    background: white;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 4px 12px rgba(13,35,64,0.08);
+    overflow: hidden;
+  }
+
+  .stepper { display: flex; background: var(--navy-soft); border-bottom: 1px solid var(--gray-2); }
+  .step { flex: 1; padding: 14px 12px; text-align: center; font-size: 12px; color: var(--gray-4); border-right: 1px solid var(--gray-2); font-weight: bold; letter-spacing: 0.3px; }
+  .step:last-child { border-right: none; }
+  .step.active { background: var(--gold-soft); color: var(--navy); border-bottom: 3px solid var(--gold); }
+  .step .num { display: inline-block; width: 22px; height: 22px; border-radius: 50%; background: var(--gray-3); color: white; line-height: 22px; margin-right: 6px; font-size: 11px; }
+  .step.active .num { background: var(--navy); }
+
+  .panel { padding: 28px 32px; }
+
+  .section-title {
+    font-size: 15px;
+    font-weight: bold;
+    color: var(--navy);
+    border-bottom: 2px solid var(--gold);
+    padding-bottom: 6px;
+    margin-bottom: 18px;
+    letter-spacing: 0.3px;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px 18px;
+    margin-bottom: 22px;
+  }
+
+  .field { display: flex; flex-direction: column; }
+  .field label { font-size: 12px; font-weight: bold; color: var(--navy); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .field label .req { color: var(--red); }
+  .field input, .field select {
+    padding: 9px 11px;
+    border: 1px solid var(--gray-2);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 13px;
+    background: white;
+    color: var(--text);
+    transition: border-color 0.15s;
+  }
+  .field input:focus, .field select:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px var(--gold-soft);
+  }
+  .field .hint { font-size: 11px; color: var(--gray-3); margin-top: 3px; font-style: italic; }
+
+  .mode-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    background: var(--gray-1);
+    padding: 4px;
+    border-radius: 6px;
+    min-height: 48px;
+  }
+  .mode-tab {
+    flex: 1;
+    padding: 10px 12px;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: Arial, sans-serif !important;
+    font-size: 12px !important;
+    font-weight: bold !important;
+    color: var(--gray-4) !important;
+    cursor: pointer;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.15s;
+    line-height: 1.4;
+    text-align: center;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .mode-tab.active { background: var(--navy); color: white !important; }
+  .mode-tab:hover:not(.active) { background: var(--gray-2); }
+  .mode-tab:focus { outline: 2px solid var(--gold); outline-offset: -2px; }
+
+  .mode-panel { display: none !important; }
+  .mode-panel.active { display: block !important; }
+
+  .upload-area {
+    display: block;           /* CRÍTICO: label é inline por padrão, sem isso a borda tracejada renderiza só nas pontas verticais */
+    width: 100%;
+    box-sizing: border-box;
+    border: 2px dashed var(--gold);
+    border-radius: 6px;
+    padding: 36px 20px;
+    text-align: center;
+    background: var(--gold-soft);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .upload-area:hover { background: white; border-color: var(--navy); }
+  .upload-area .icon { font-size: 38px; color: var(--navy); margin-bottom: 10px; }
+  .upload-area .main-text { font-size: 14px; font-weight: bold; color: var(--navy); margin-bottom: 4px; }
+  .upload-area .sub-text { font-size: 11px; color: var(--gray-4); }
+  #cnis-file { display: none; }
+
+  .vinculo-row {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr 1fr 0.9fr 40px;
+    gap: 10px;
+    align-items: end;
+    padding: 12px;
+    background: var(--gray-1);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    border-left: 3px solid var(--gold);
+  }
+  .vinculo-row .field label { font-size: 11px; }
+  .vinculo-row input, .vinculo-row select { padding: 7px 9px; font-size: 12px; }
+  .btn-remove {
+    background: var(--red-soft);
+    color: var(--red);
+    border: none;
+    border-radius: 4px;
+    height: 32px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    transition: background 0.15s;
+  }
+  .btn-remove:hover { background: #f4d5d5; }
+
+  .btn-add {
+    background: var(--navy-soft);
+    color: var(--navy);
+    border: 1px dashed var(--navy);
+    padding: 10px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.15s;
+    width: 100%;
+    margin-top: 6px;
+  }
+  .btn-add:hover { background: var(--navy); color: white; }
+
+  .actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    padding: 18px 32px;
+    background: var(--gray-1);
+    border-top: 1px solid var(--gray-2);
+  }
+  .btn {
+    padding: 11px 24px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.15s;
+  }
+  .btn-primary { background: var(--gold); color: var(--navy); }
+  .btn-primary:hover { background: var(--gold-light); }
+  .btn-secondary { background: white; color: var(--navy); border: 1px solid var(--gray-2); }
+  .btn-secondary:hover { background: var(--gray-1); }
+  .btn-pdf { background: var(--navy); color: white; }
+  .btn-pdf:hover { background: var(--navy-light); }
+  .btn-pdf:disabled { opacity: 0.6; cursor: wait; }
+
+  #resultado { display: none; }
+  #resultado.show { display: block; }
+
+  .verdict-card { padding: 24px 28px; border-radius: 8px; margin-bottom: 20px; border-left: 6px solid; }
+  .verdict-card.green { background: var(--green-soft); border-color: var(--green); }
+  .verdict-card.red { background: var(--red-soft); border-color: var(--red); }
+  .verdict-card.amber { background: var(--amber-soft); border-color: var(--amber); }
+
+  .verdict-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .verdict-badge { font-size: 11px; font-weight: bold; padding: 4px 10px; border-radius: 3px; background: var(--navy); color: white; text-transform: uppercase; letter-spacing: 0.8px; }
+  .verdict-title { font-size: 18px; font-weight: bold; color: var(--navy); }
+  .verdict-text { font-size: 14px; color: var(--text); }
+
+  .scenario-grid { display: grid; grid-template-columns: 1fr; gap: 18px; margin-bottom: 20px; }
+  .scenario-grid.dual { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 720px) { .scenario-grid.dual { grid-template-columns: 1fr; } }
+
+  .scenario { background: white; border: 1px solid var(--gray-2); border-radius: 6px; overflow: hidden; }
+  .scenario-head { padding: 14px 18px; border-bottom: 1px solid var(--gray-2); background: var(--navy); color: white; }
+  .scenario-head.protetivo { background: var(--amber); }
+  .scenario-head .tag { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; margin-bottom: 3px; }
+  .scenario-head .title { font-size: 15px; font-weight: bold; }
+  .scenario-body { padding: 18px; }
+
+  .data-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dotted var(--gray-2); font-size: 13px; }
+  .data-row:last-child { border-bottom: none; }
+  .data-row .label { color: var(--gray-4); }
+  .data-row .value { font-weight: bold; color: var(--navy); }
+  .data-row .value.ok { color: var(--green); }
+  .data-row .value.no { color: var(--red); }
+  .data-row .value.warn { color: var(--amber); }
+
+  .recommendation {
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: var(--navy-soft);
+    border-radius: 4px;
+    font-size: 13px;
+    border-left: 3px solid var(--navy);
+  }
+  .recommendation strong { color: var(--navy); display: block; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .legal-notes { background: var(--gold-soft); border-radius: 6px; padding: 18px 22px; margin-bottom: 18px; border-left: 4px solid var(--gold); }
+  .legal-notes h4 { font-size: 12px; color: var(--navy); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.8px; }
+  .legal-notes ul { list-style: none; }
+  .legal-notes li { font-size: 12px; color: var(--gray-4); padding: 4px 0 4px 18px; position: relative; line-height: 1.6; }
+  .legal-notes li::before { content: "§"; position: absolute; left: 0; color: var(--gold); font-weight: bold; }
+
+  .alerts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+  .alert { padding: 12px 16px; border-radius: 4px; font-size: 12px; border-left: 3px solid; display: flex; gap: 10px; }
+  .alert .alert-tag { font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; padding: 2px 7px; border-radius: 3px; flex-shrink: 0; height: fit-content; white-space: nowrap; }
+  .alert.info { background: var(--navy-soft); border-color: var(--navy); }
+  .alert.info .alert-tag { background: var(--navy); color: white; }
+  .alert.warn { background: var(--amber-soft); border-color: var(--amber); }
+  .alert.warn .alert-tag { background: var(--amber); color: white; }
+  .alert.danger { background: var(--red-soft); border-color: var(--red); }
+  .alert.danger .alert-tag { background: var(--red); color: white; }
+
+  .timeline { background: var(--gray-1); padding: 16px 20px; border-radius: 6px; margin-bottom: 18px; font-size: 12px; }
+  .timeline h4 { font-size: 12px; color: var(--navy); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  footer { margin-top: 18px; padding: 14px 20px; text-align: center; font-size: 10px; color: var(--gray-3); letter-spacing: 0.5px; }
+  footer strong { color: var(--navy); }
+
+  .hidden { display: none !important; }
+
+  .cnis-status {
+    margin-top: 14px;
+    padding: 14px 18px;
+    border-radius: 6px;
+    font-size: 13px;
+    display: none;
+    line-height: 1.6;
+  }
+  .cnis-status.processing { display: block; background: var(--navy-soft); color: var(--navy); border-left: 3px solid var(--navy); }
+  .cnis-status.success { display: block; background: var(--green-soft); color: var(--green); border-left: 3px solid var(--green); }
+  .cnis-status.error { display: block; background: var(--red-soft); color: var(--red); border-left: 3px solid var(--red); }
+  .cnis-status.warn { display: block; background: var(--amber-soft); color: var(--amber); border-left: 3px solid var(--amber); }
+
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--navy-soft);
+    border-top-color: var(--navy);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .extracted-summary {
+    background: white;
+    border: 1px solid var(--gray-2);
+    border-radius: 6px;
+    padding: 16px;
+    margin-top: 14px;
+  }
+  .extracted-summary h5 {
+    font-size: 12px;
+    color: var(--navy);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .extracted-vinculo {
+    padding: 8px 12px;
+    background: var(--gray-1);
+    border-left: 3px solid var(--gold);
+    border-radius: 3px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .extracted-vinculo strong { color: var(--navy); }
+
+  /* =================================================================
+     RESULTADO NARRATIVO — v1.7
+     ================================================================= */
+  .resultado-final {
+    text-align: center;
+    padding: 32px 28px 28px;
+    border-radius: 8px;
+    margin-bottom: 22px;
+    border: 2px solid;
+  }
+  .resultado-final.verde { background: linear-gradient(180deg, #f0f9f2 0%, #e8f5eb 100%); border-color: var(--green); }
+  .resultado-final.amarelo { background: linear-gradient(180deg, #fef9ec 0%, #fdf5e0 100%); border-color: var(--amber); }
+  .resultado-final.vermelho { background: linear-gradient(180deg, #fdf0f0 0%, #fbeaea 100%); border-color: var(--red); }
+
+  .resultado-icone {
+    font-size: 56px;
+    line-height: 1;
+    margin-bottom: 12px;
+    display: block;
+  }
+  .resultado-titulo {
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--navy);
+    margin-bottom: 8px;
+    letter-spacing: -0.3px;
+    line-height: 1.25;
+  }
+  .resultado-final.verde .resultado-titulo { color: var(--green); }
+  .resultado-final.amarelo .resultado-titulo { color: var(--amber); }
+  .resultado-final.vermelho .resultado-titulo { color: var(--red); }
+
+  .resultado-subtitulo {
+    font-size: 14px;
+    color: var(--gray-4);
+    font-weight: normal;
+    max-width: 720px;
+    margin: 0 auto;
+    line-height: 1.5;
+  }
+
+  .explicacao-box {
+    background: white;
+    border: 1px solid var(--gray-2);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+  }
+  .explicacao-box h3 {
+    font-size: 13px;
+    color: var(--navy);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    border-bottom: 2px solid var(--gold);
+    padding-bottom: 6px;
+    display: inline-block;
+  }
+  .explicacao-box p {
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--text);
+    margin-bottom: 10px;
+  }
+  .explicacao-box p:last-child { margin-bottom: 0; }
+  .explicacao-box strong { color: var(--navy); }
+  .explicacao-box .destaque {
+    background: var(--gold-soft);
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: var(--navy);
+    font-weight: bold;
+  }
+
+  .plano-acao {
+    background: var(--navy-soft);
+    border-radius: 8px;
+    padding: 22px 26px;
+    margin-bottom: 20px;
+    border-left: 5px solid var(--navy);
+  }
+  .plano-acao h3 {
+    font-size: 14px;
+    color: var(--navy);
+    margin-bottom: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .plano-acao .secao-acao {
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px dashed rgba(13,35,64,0.15);
+  }
+  .plano-acao .secao-acao:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+  .plano-acao .secao-titulo {
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--navy);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .plano-acao .secao-titulo .icone-sec { font-size: 16px; }
+  .plano-acao ol, .plano-acao ul {
+    margin-left: 22px;
+    color: var(--text);
+    font-size: 13.5px;
+    line-height: 1.7;
+  }
+  .plano-acao li { margin-bottom: 6px; }
+  .plano-acao li strong { color: var(--navy); }
+  .plano-acao .destaque-numerico {
+    display: inline-block;
+    background: var(--gold);
+    color: var(--navy);
+    font-weight: bold;
+    padding: 1px 8px;
+    border-radius: 3px;
+    margin: 0 2px;
+  }
+
+  .atencao-pos-eleicao {
+    background: linear-gradient(135deg, #fdf5e0 0%, #faf6e8 100%);
+    border: 2px solid var(--amber);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin-bottom: 20px;
+  }
+  .atencao-pos-eleicao .titulo-atencao {
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--amber);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .atencao-pos-eleicao p {
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .atencao-pos-eleicao p:last-child { margin-bottom: 0; }
+
+  .detalhes-tecnicos {
+    margin-top: 18px;
+    border: 1px solid var(--gray-2);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .detalhes-tecnicos summary {
+    background: var(--gray-1);
+    padding: 14px 20px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .detalhes-tecnicos summary::-webkit-details-marker { display: none; }
+  .detalhes-tecnicos summary::after {
+    content: "▼";
+    font-size: 10px;
+    color: var(--gold);
+    transition: transform 0.2s;
+  }
+  .detalhes-tecnicos[open] summary::after { transform: rotate(180deg); }
+  .detalhes-tecnicos summary:hover { background: var(--gold-soft); }
+  .detalhes-tecnicos-body { padding: 20px 24px; background: white; }
+  .detalhes-tecnicos-body .bloco-tecnico {
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--gray-2);
+  }
+  .detalhes-tecnicos-body .bloco-tecnico:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+  .detalhes-tecnicos-body h5 {
+    font-size: 12px;
+    color: var(--navy);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .detalhes-tecnicos-body p {
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--gray-4);
+    margin-bottom: 6px;
+  }
+  .detalhes-tecnicos-body ul { list-style: none; margin-top: 8px; }
+  .detalhes-tecnicos-body ul li {
+    font-size: 12px;
+    color: var(--gray-4);
+    padding: 3px 0 3px 16px;
+    position: relative;
+    line-height: 1.55;
+  }
+  .detalhes-tecnicos-body ul li::before {
+    content: "§"; position: absolute; left: 0; color: var(--gold); font-weight: bold;
+  }
+
+  /* =================================================================
+     AVISO DE URGÊNCIA — parto em menos de 30 dias (v3.0)
+     ================================================================= */
+  .aviso-urgencia {
+    background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+    color: white;
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    box-shadow: 0 4px 12px rgba(185, 28, 28, 0.25);
+    border: 2px solid #7f1d1d;
+    animation: pulseUrgencia 2.5s ease-in-out infinite;
+  }
+  @keyframes pulseUrgencia {
+    0%, 100% { box-shadow: 0 4px 12px rgba(185, 28, 28, 0.25); }
+    50% { box-shadow: 0 4px 20px rgba(185, 28, 28, 0.5); }
+  }
+  .aviso-urgencia-icone {
+    font-size: 32px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .aviso-urgencia-conteudo {
+    flex: 1;
+  }
+  .aviso-urgencia-titulo {
+    font-size: 15px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 6px;
+    color: white;
+  }
+  .aviso-urgencia-texto {
+    font-size: 13px;
+    line-height: 1.55;
+    color: rgba(255,255,255,0.95);
+  }
+  .aviso-urgencia-texto strong {
+    color: #fcd34d;
+  }
+
+  /* =================================================================
+     ANÁLISE FINANCEIRA — v1.8
+     ================================================================= */
+  .financeiro-bloco {
+    background: white;
+    border: 1px solid var(--gray-2);
+    border-radius: 8px;
+    padding: 22px 26px;
+    margin-bottom: 18px;
+  }
+  .financeiro-bloco h3 {
+    font-size: 14px;
+    color: var(--navy);
+    margin-bottom: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    border-bottom: 2px solid var(--gold);
+    padding-bottom: 6px;
+    display: inline-block;
+  }
+
+  .financeiro-bloco.recebimento { border-left: 5px solid var(--green); }
+  .financeiro-bloco.investimento { border-left: 5px solid var(--amber); }
+  .financeiro-bloco.saldo { border-left: 5px solid var(--navy); background: linear-gradient(180deg, #f8faff 0%, white 100%); }
+
+  .calc-linha {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 7px 0;
+    font-size: 13.5px;
+    color: var(--gray-4);
+    border-bottom: 1px dotted var(--gray-2);
+  }
+  .calc-linha:last-of-type { border-bottom: none; }
+  .calc-linha .descricao { flex: 1; }
+  .calc-linha .formula { font-size: 11px; color: var(--gray-3); font-style: italic; margin-left: 8px; }
+  .calc-linha .valor {
+    font-weight: bold;
+    color: var(--navy);
+    white-space: nowrap;
+    margin-left: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .calc-linha.negativo .valor { color: var(--red); }
+  .calc-linha.positivo .valor { color: var(--green); }
+  .calc-linha.total {
+    margin-top: 8px;
+    padding-top: 12px;
+    border-top: 2px solid var(--navy);
+    font-size: 15px;
+    font-weight: bold;
+    color: var(--navy);
+  }
+  .calc-linha.total .valor {
+    font-size: 18px;
+  }
+  .calc-linha.total .valor.verde { color: var(--green); }
+
+  .planos-contribuicao {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .plano-card {
+    background: var(--gray-1);
+    border-radius: 6px;
+    padding: 14px 16px;
+    border-left: 3px solid var(--gray-3);
+    position: relative;
+  }
+  .plano-card.recomendado {
+    border-left-color: var(--green);
+    background: var(--green-soft);
+  }
+  .plano-card.atencao {
+    border-left-color: var(--amber);
+    background: var(--amber-soft);
+  }
+  .plano-card .plano-titulo {
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--navy);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .plano-card .badge-recomendado {
+    background: var(--green);
+    color: white;
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .plano-card .badge-atencao {
+    background: var(--amber);
+    color: white;
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .plano-card .plano-valor {
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--navy);
+    margin: 4px 0;
+  }
+  .plano-card .plano-valor .total-investimento {
+    font-size: 11px;
+    color: var(--gray-4);
+    font-weight: normal;
+    margin-left: 6px;
+  }
+  .plano-card .plano-observacao {
+    font-size: 11.5px;
+    color: var(--gray-4);
+    line-height: 1.5;
+    margin-top: 6px;
+  }
+  .plano-card .plano-codigo {
+    font-size: 10px;
+    color: var(--gray-3);
+    font-family: monospace;
+    margin-top: 4px;
+  }
+
+  .nota-isencao {
+    background: var(--green-soft);
+    border-left: 3px solid var(--green);
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    color: var(--text);
+    line-height: 1.5;
+    margin-top: 10px;
+  }
+
+  .saldo-final {
+    text-align: center;
+    padding: 18px;
+    background: var(--navy);
+    color: white;
+    border-radius: 6px;
+    margin-top: 12px;
+  }
+  .saldo-final .label-saldo {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--gold-light);
+    margin-bottom: 6px;
+  }
+  .saldo-final .valor-saldo {
+    font-size: 32px;
+    font-weight: bold;
+    color: white;
+    margin-bottom: 4px;
+    letter-spacing: -0.5px;
+  }
+  .saldo-final .descricao-saldo {
+    font-size: 12px;
+    color: rgba(255,255,255,0.8);
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div>
+      <h1>Calculadora de Salário-Maternidade</h1>
+      <div class="subtitle">Análise de Qualidade de Segurada e Carência · Uso Interno</div>
+    </div>
+    <div class="firm">
+      <strong>ARRAIS ADVOGADOS</strong>
+      OAB/MG 19.391<br>
+      Direito Previdenciário
+    </div>
+  </header>
+
+  <main>
+    <section id="entrada">
+      <div class="stepper">
+        <div class="step active"><span class="num">1</span>Identificação</div>
+        <div class="step active"><span class="num">2</span>Período de Graça</div>
+        <div class="step active"><span class="num">3</span>Vínculos / CNIS</div>
+        <div class="step"><span class="num">4</span>Resultado</div>
+      </div>
+
+      <div class="panel">
+        <div class="section-title">1. Identificação da Segurada e Fato Gerador</div>
+
+        <div class="form-grid">
+          <div class="field">
+            <label>Nome da cliente</label>
+            <input type="text" id="nome" placeholder="Preenchido automaticamente pelo CNIS, se houver upload">
+          </div>
+
+          <div class="field">
+            <label>Categoria da segurada <span class="req">*</span></label>
+            <select id="categoria">
+              <option value="">Selecione...</option>
+              <option value="empregada">Empregada CLT</option>
+              <option value="domestica">Empregada Doméstica</option>
+              <option value="avulsa">Trabalhadora Avulsa</option>
+              <option value="individual">Contribuinte Individual (autônoma)</option>
+              <option value="mei">MEI</option>
+              <option value="facultativa">Facultativa</option>
+              <option value="especial">Segurada Especial (rural)</option>
+              <option value="desempregada">Desempregada (em período de graça)</option>
+            </select>
+          </div>
+
+          <div class="field hidden" id="field_plano">
+            <label>Plano de contribuição da segurada <span class="req">*</span></label>
+            <select id="plano_contribuicao">
+              <option value="simplificado">Plano Simplificado (11% sobre 1 SM) — mais comum</option>
+              <option value="normal">Plano Normal (20% sobre o salário de contribuição)</option>
+              <option value="baixa_renda">Facultativa Baixa Renda (5%) ou MEI</option>
+            </select>
+            <div class="hint">Determina a alíquota que o INSS retém sobre o salário-maternidade</div>
+          </div>
+
+          <div class="field">
+            <label>Tipo de fato gerador <span class="req">*</span></label>
+            <select id="fato_gerador">
+              <option value="parto">Parto</option>
+              <option value="adocao">Adoção / Guarda judicial</option>
+              <option value="natimorto">Natimorto (após 23ª semana)</option>
+              <option value="aborto">Aborto não criminoso</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Data do parto / fato gerador <span class="req">*</span></label>
+            <input type="date" id="data_parto">
+            <div class="hint">DPP estimada ou data efetiva do parto/adoção</div>
+          </div>
+        </div>
+
+        <div id="campos_especial" class="hidden">
+          <div class="form-grid">
+            <div class="field">
+              <label>Atividade rural comprovável <span class="req">*</span></label>
+              <select id="meses_rural">
+                <option value="">Selecione...</option>
+                <option value="0">Menos de 6 meses</option>
+                <option value="6">6 a 9 meses</option>
+                <option value="10">10 meses ou mais</option>
+              </select>
+              <div class="hint">Soma nos 10 meses imediatamente anteriores ao parto</div>
+            </div>
+            <div class="field">
+              <label>Tipo de prova material</label>
+              <select id="prova_rural">
+                <option value="ausente">Ausente</option>
+                <option value="fraca">Fraca (declaração de sindicato apenas)</option>
+                <option value="razoavel">Razoável (notas de produtor, ITR, CCIR)</option>
+                <option value="forte">Forte (PRONAF, DAP, CAR, contratos)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="campos_desempregada" class="hidden">
+          <div class="form-grid">
+            <div class="field">
+              <label>Já estava desempregada há quanto tempo?</label>
+              <input type="text" id="tempo_desempregada" placeholder="Ex.: 18 meses">
+              <div class="hint">Apenas referência — o cálculo usa o último vínculo do CNIS</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title" style="margin-top: 28px;">2. Período de Graça — Prorrogações</div>
+
+        <div style="background: var(--gray-1); padding: 16px 20px; border-radius: 6px; margin-bottom: 18px; border-left: 3px solid var(--navy);">
+          <div style="font-size: 12px; color: var(--gray-4); margin-bottom: 12px; line-height: 1.6;">
+            Marque as prorrogações aplicáveis ao caso (<strong>art. 15, §§ 1º e 2º, da Lei 8.213/91</strong>). Cada item adiciona 12 meses ao período base. Podem ser cumulativos — até 36 meses (ou 18 meses para facultativa).
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label>+12 meses: 120+ contribuições sem perda</label>
+              <select id="tinha_120">
+                <option value="nao">Não — segurada NÃO tinha 120+ contribuições</option>
+                <option value="sim">Sim — comprovadas 120+ contribuições sem perda anterior</option>
+              </select>
+              <div class="hint">Art. 15, § 1º, Lei 8.213/91</div>
+            </div>
+            <div class="field">
+              <label>+12 meses: desemprego involuntário</label>
+              <select id="desemprego_involuntario">
+                <option value="nao">Não comprovado / não se aplica</option>
+                <option value="sim">Sim — comprovado (TRCT, CAGED, CTPS, outros meios)</option>
+              </select>
+              <div class="hint">Art. 15, § 2º · Súmula 27/TNU · REsp 1.338.295/RS</div>
+            </div>
+          </div>
+          <div id="periodo_graca_preview" style="margin-top: 10px; padding: 10px 14px; background: var(--navy-soft); border-radius: 4px; font-size: 12px; color: var(--navy); display: none;">
+            <strong id="graca_preview_text"></strong>
+          </div>
+        </div>
+
+        <div class="section-title" style="margin-top: 28px;">3. Histórico Contributivo (CNIS)</div>
+
+        <div class="mode-tabs">
+          <button class="mode-tab active" data-mode="upload">Upload do CNIS (PDF)</button>
+          <button class="mode-tab" data-mode="manual">Digitação Manual</button>
+        </div>
+
+        <div id="mode-upload" class="mode-panel active">
+          <label for="cnis-file" class="upload-area">
+            <div class="icon">📄</div>
+            <div class="main-text">Clique para selecionar o PDF do CNIS</div>
+            <div class="sub-text">PDF original baixado do Meu INSS (texto pesquisável)<br>O nome da cliente e os vínculos serão preenchidos automaticamente</div>
+          </label>
+          <input type="file" id="cnis-file" accept="application/pdf">
+          <div id="cnis-status" class="cnis-status"></div>
+          <div id="extracted-summary" class="hidden"></div>
+        </div>
+
+        <div id="mode-manual" class="mode-panel">
+          <div id="vinculos_lista"></div>
+          <button class="btn-add" id="btn_add_vinculo">+ Adicionar vínculo / período contributivo</button>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-secondary" id="btn_limpar">Limpar</button>
+        <button class="btn btn-primary" id="btn_analisar">Analisar Caso</button>
+      </div>
+    </section>
+
+    <section id="resultado">
+      <div class="stepper">
+        <div class="step active"><span class="num">1</span>Identificação</div>
+        <div class="step active"><span class="num">2</span>Período de Graça</div>
+        <div class="step active"><span class="num">3</span>Vínculos / CNIS</div>
+        <div class="step active"><span class="num">4</span>Resultado</div>
+      </div>
+
+      <div class="panel">
+        <div id="resultado-final-container"></div>
+        <div id="atencao-container"></div>
+        <div id="explicacao-container"></div>
+        <div id="plano-acao-container"></div>
+        <div id="financeiro-container"></div>
+        <div id="detalhes-tecnicos-container"></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-secondary" id="btn_voltar">← Voltar e Editar</button>
+        <button class="btn btn-pdf" id="btn_pdf_interno" title="Salva PDF completo para a pasta interna da cliente">📄 PDF Interno</button>
+        <button class="btn btn-pdf" id="btn_pdf_cliente" title="Salva PDF com orientações para entregar à cliente">📋 PDF Cliente</button>
+        <button class="btn btn-primary" id="btn_nova">Nova Análise</button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <strong>ARRAIS ADVOGADOS · OAB/MG 19.391</strong> · Ferramenta de uso interno · Não substitui análise jurídica individualizada<br>
+    Base normativa: Lei 8.213/91 · IN PRES/INSS 128/2022 · ADIs 2.110 e 2.111/STF · IN 188/2025<br>
+    <span style="opacity:0.6">v3.3.2 · maio/2026</span>
+  </footer>
+</div>
+
+<script>
+// =====================================================================
+// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.3.2
+// Lógica jurídica:
+// - ADIs 2.110 e 2.111 (STF, j. 21/03/2024, ac. publ. 24/05/2024)
+// - IN 188/2025: isenção aplicada a requerimentos a partir de 05/04/2024
+// - Cenário duplo para partos a partir de 01/01/2027 (margem pós-posse)
+// - Extração automática do CNIS via PDF.js
+// =====================================================================
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const DATA_CORTE = new Date('2026-12-31T23:59:59');
+
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+
+function showSection(id) {
+  $('#entrada').style.display = id === 'entrada' ? 'block' : 'none';
+  $('#resultado').classList.toggle('show', id === 'resultado');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ----- CATEGORIA → CAMPOS CONDICIONAIS ------------------------------
+$('#categoria').addEventListener('change', (e) => {
+  const v = e.target.value;
+  $('#campos_especial').classList.toggle('hidden', v !== 'especial');
+  $('#campos_desempregada').classList.toggle('hidden', v !== 'desempregada');
+  // Mostrar campo de plano apenas para individual/facultativa
+  // (MEI sempre 5% = equipara-se ao simplificado, não precisa perguntar)
+  const precisaPerguntar = ['individual', 'facultativa'].includes(v);
+  $('#field_plano').classList.toggle('hidden', !precisaPerguntar);
+  // Se for MEI, força o plano para baixa_renda automaticamente
+  if (v === 'mei') $('#plano_contribuicao').value = 'baixa_renda';
+  atualizarPreviewGraca();
+});
+
+// ----- PREVIEW DO PERÍODO DE GRAÇA TOTAL (atualiza em tempo real) ----
+function atualizarPreviewGraca() {
+  const cat = $('#categoria').value;
+  const tinha120 = $('#tinha_120').value === 'sim';
+  const desempInv = $('#desemprego_involuntario').value === 'sim';
+  const preview = $('#periodo_graca_preview');
+  const txt = $('#graca_preview_text');
+
+  // Para segurada especial: não se aplica período de graça (regra própria de 10 meses)
+  if (cat === 'especial') {
+    preview.style.display = 'block';
+    preview.style.background = 'var(--amber-soft)';
+    preview.style.color = 'var(--amber)';
+    preview.style.borderLeft = '3px solid var(--amber)';
+    txt.innerHTML = 'ℹ Segurada especial não se sujeita ao período de graça do art. 15 — a análise é feita pelo critério de 10 meses de atividade rural anteriores ao parto (art. 39, parágrafo único, Lei 8.213/91).';
+    return;
+  }
+
+  if (!cat) {
+    preview.style.display = 'none';
+    return;
+  }
+
+  const base = cat === 'facultativa' ? 6 : 12;
+  let total = base;
+  let composicao = `${base} meses (base${cat === 'facultativa' ? ' — facultativa' : ''})`;
+  if (tinha120) { total += 12; composicao += ' + 12 (120+ contribuições)'; }
+  if (desempInv) { total += 12; composicao += ' + 12 (desemprego involuntário)'; }
+
+  preview.style.display = 'block';
+  preview.style.background = 'var(--navy-soft)';
+  preview.style.color = 'var(--navy)';
+  preview.style.borderLeft = '3px solid var(--navy)';
+  txt.innerHTML = `Período de graça total aplicável: <span style="font-size:14px">${total} meses</span><br>
+    <span style="font-weight:normal;font-size:11px">Composição: ${composicao}</span>`;
+}
+
+$('#tinha_120').addEventListener('change', atualizarPreviewGraca);
+$('#desemprego_involuntario').addEventListener('change', atualizarPreviewGraca);
+
+// ----- TABS -----------------------------------------------
+$$('.mode-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    $$('.mode-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const mode = tab.dataset.mode;
+    $('#mode-manual').classList.toggle('active', mode === 'manual');
+    $('#mode-upload').classList.toggle('active', mode === 'upload');
+    // Se aba manual abriu vazia, cria uma linha em branco para começar
+    if (mode === 'manual' && $('#vinculos_lista').children.length === 0) {
+      addVinculo();
+    }
+  });
+});
+
+// ----- VÍNCULOS MANUAIS ---------------------------------------------
+let vinculoSeq = 0;
+function addVinculo(emp = '', inicio = '', fim = '', tipo = 'empregado') {
+  vinculoSeq++;
+  const id = `v_${vinculoSeq}`;
+  const row = document.createElement('div');
+  row.className = 'vinculo-row';
+  row.id = id;
+  row.innerHTML = `
+    <div class="field">
+      <label>Empregador / Atividade</label>
+      <input type="text" class="v-emp" placeholder="Ex.: Empresa XYZ ou Recolhimento como CI" value="${emp}">
+    </div>
+    <div class="field">
+      <label>Início (DD/MM/AAAA)</label>
+      <input type="text" class="v-inicio" placeholder="01/03/2023" value="${inicio}">
+    </div>
+    <div class="field">
+      <label>Fim (DD/MM/AAAA)</label>
+      <input type="text" class="v-fim" placeholder="ou EM ABERTO" value="${fim}">
+    </div>
+    <div class="field">
+      <label>Tipo</label>
+      <select class="v-tipo">
+        <option value="empregado" ${tipo === 'empregado' ? 'selected' : ''}>Empregado</option>
+        <option value="domestica" ${tipo === 'domestica' ? 'selected' : ''}>Doméstica</option>
+        <option value="avulso" ${tipo === 'avulso' ? 'selected' : ''}>Avulso</option>
+        <option value="ci" ${tipo === 'ci' ? 'selected' : ''}>Cont. Individual</option>
+        <option value="facultativo" ${tipo === 'facultativo' ? 'selected' : ''}>Facultativo</option>
+        <option value="mei" ${tipo === 'mei' ? 'selected' : ''}>MEI</option>
+        <option value="especial" ${tipo === 'especial' ? 'selected' : ''}>Especial Rural</option>
+        <option value="beneficio" ${tipo === 'beneficio' ? 'selected' : ''}>Benefício anterior</option>
+      </select>
+    </div>
+    <button class="btn-remove" onclick="document.getElementById('${id}').remove()">×</button>
+  `;
+  $('#vinculos_lista').appendChild(row);
+}
+$('#btn_add_vinculo').addEventListener('click', () => addVinculo());
+// Não chamamos addVinculo() no carregamento porque a aba padrão é "Upload do CNIS".
+// Quando a atendente clicar em "Digitação Manual", se a lista estiver vazia, criamos
+// automaticamente uma linha em branco para começar.
+
+// ====================================================================
+// EXTRAÇÃO DO CNIS — Parser robusto para layouts atuais do Meu INSS
+// ====================================================================
+
+$('#cnis-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  await processarCNIS(file);
+});
+
+async function processarCNIS(file) {
+  const status = $('#cnis-status');
+  const summary = $('#extracted-summary');
+  status.className = 'cnis-status processing';
+  status.innerHTML = `<span class="spinner"></span> Lendo o PDF do CNIS — extraindo nome e vínculos...`;
+  summary.classList.add('hidden');
+
+  try {
+    console.group('🔍 Processamento do CNIS');
+    console.log('Arquivo:', file.name, '|', file.size, 'bytes');
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    console.log('PDF.js versão:', pdfjsLib.version);
+    console.log('Número de páginas:', pdf.numPages);
+
+    // Inspecionar a primeira página: rotação e amostra de items
+    const page1 = await pdf.getPage(1);
+    console.log('Rotação da página 1:', page1.rotate);
+    const content1 = await page1.getTextContent();
+    console.log('Quantidade de items na pág 1:', content1.items.length);
+    console.log('Primeiros 5 items:', content1.items.slice(0, 5));
+
+    // Reconstrução de texto via posições X/Y dos chars, com correção de rotação
+    let textoCompleto = await reconstruirTextoDoCNIS(pdf);
+    console.log('Texto reconstruído (método principal) — tamanho:', textoCompleto.length);
+    console.log('Amostra (primeiros 500 chars):', textoCompleto.substring(0, 500));
+
+    // FALLBACK: se a reconstrução não produziu datas reconhecíveis,
+    // tentar a estratégia simples (concatenar todos os items.str em ordem)
+    const temDatas = /\d{2}\/\d{2}\/\d{4}/.test(textoCompleto);
+    console.log('Tem datas DD/MM/AAAA?', temDatas);
+    if (!textoCompleto.trim() || textoCompleto.length < 100 || !temDatas) {
+      console.warn('Reconstrução principal não detectou datas. Tentando fallback simples.');
+      textoCompleto = await reconstruirTextoSimples(pdf);
+      console.log('Fallback — tamanho:', textoCompleto.length);
+      console.log('Fallback — amostra:', textoCompleto.substring(0, 500));
+    }
+
+    if (!textoCompleto.trim() || textoCompleto.length < 100) {
+      throw new Error('PDF sem texto pesquisável. Provavelmente é um CNIS escaneado ou foto. Use a aba "Digitação Manual".');
+    }
+
+    // Para debug: armazenar último texto extraído em variável global
+    window.__ultimoTextoCNIS = textoCompleto;
+    console.log('✓ Texto disponível em window.__ultimoTextoCNIS');
+
+    const dados = parseCNIS(textoCompleto);
+    console.log('Nome extraído:', dados.nome);
+    console.log('Vínculos extraídos:', dados.vinculos.length, dados.vinculos);
+    console.groupEnd();
+
+    if (dados.nome) {
+      $('#nome').value = dados.nome;
+    }
+
+    if (dados.vinculos.length > 0) {
+      $('#vinculos_lista').innerHTML = '';
+      vinculoSeq = 0;
+      dados.vinculos.forEach(v => {
+        addVinculo(v.empregador, v.inicio, v.fim, v.tipo);
+      });
+    }
+
+    if (dados.vinculos.length > 0) {
+      status.className = 'cnis-status success';
+      status.innerHTML = `<strong>✓ CNIS processado com sucesso.</strong><br>
+        ${dados.nome ? `Nome identificado: <strong>${dados.nome}</strong><br>` : ''}
+        Vínculos extraídos: <strong>${dados.vinculos.length}</strong><br>
+        <em style="font-size:11px">Confira os dados abaixo. Se algum vínculo estiver faltando ou incorreto, abra a aba "Digitação Manual" para ajustar antes de analisar.</em>`;
+
+      summary.classList.remove('hidden');
+      summary.className = 'extracted-summary';
+      summary.innerHTML = `<h5>Vínculos extraídos do CNIS</h5>` +
+        dados.vinculos.map(v => `
+          <div class="extracted-vinculo">
+            <strong>${v.empregador || '(empregador não identificado)'}</strong> ·
+            ${v.inicio} → ${v.fim || 'em aberto'} · ${tipoLabel(v.tipo)}
+          </div>
+        `).join('');
+    } else {
+      status.className = 'cnis-status warn';
+      const amostra = textoCompleto.substring(0, 800).replace(/</g, '&lt;');
+      status.innerHTML = `<strong>⚠ Nenhum vínculo identificado automaticamente.</strong><br>
+        ${dados.nome ? `Nome identificado: <strong>${dados.nome}</strong><br>` : 'Nome também não foi identificado.<br>'}
+        O layout deste CNIS pode estar fora do padrão mapeado. Por favor, use a aba "Digitação Manual" para inserir os vínculos.
+        <details style="margin-top:10px;padding:8px;background:rgba(255,255,255,0.5);border-radius:4px;">
+          <summary style="cursor:pointer;font-weight:bold;font-size:11px">▼ Diagnóstico técnico (envie esta amostra para o suporte)</summary>
+          <pre style="font-size:10px;white-space:pre-wrap;word-wrap:break-word;max-height:300px;overflow:auto;margin-top:8px;font-family:monospace;background:#fff;padding:8px;border-radius:3px;">Tamanho texto: ${textoCompleto.length} chars
+Tem datas: ${/\d{2}\/\d{2}\/\d{4}/.test(textoCompleto)}
+─────────────────────────
+${amostra}${textoCompleto.length > 800 ? '\n... [truncado]' : ''}</pre>
+        </details>`;
+    }
+
+  } catch (err) {
+    console.error(err);
+    status.className = 'cnis-status error';
+    status.innerHTML = `<strong>✕ Erro ao processar o CNIS:</strong><br>${err.message}
+      <details style="margin-top:10px;padding:8px;background:rgba(255,255,255,0.5);border-radius:4px;">
+        <summary style="cursor:pointer;font-weight:bold;font-size:11px">▼ Detalhes técnicos</summary>
+        <pre style="font-size:10px;margin-top:8px">${err.stack || err.message}</pre>
+      </details>`;
+  }
+}
+
+function tipoLabel(t) {
+  const m = {
+    empregado: 'Empregado', domestica: 'Doméstica', avulso: 'Avulso',
+    ci: 'Cont. Individual', facultativo: 'Facultativo', mei: 'MEI',
+    especial: 'Especial Rural', beneficio: 'Benefício anterior'
+  };
+  return m[t] || t;
+}
+
+// ----- RECONSTRUÇÃO DE TEXTO DO PDF ---------------------------------
+// Estratégia validada contra CNIS reais do Meu INSS (maio/2026):
+// O CNIS do Meu INSS vem com rotation=90. Em vez de calcular a transformação
+// manualmente, usamos page.getViewport() que já aplica rotação automaticamente
+// e nos dá coordenadas no espaço visual final.
+async function reconstruirTextoDoCNIS(pdf) {
+  const linhasFinais = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const items = content.items;
+    if (!items.length) continue;
+
+    // Obter viewport com a rotação da página já aplicada
+    const viewport = page.getViewport({ scale: 1.0 });
+    console.log(`Página ${i}: viewport=${viewport.width}x${viewport.height}, rotation=${viewport.rotation}`);
+
+    // Aplicar transformação do viewport a cada item para obter coords visuais
+    // Documentação PDF.js: util.transform(viewport.transform, item.transform) compõe
+    // as matrizes e nos dá [a, b, c, d, e, f] onde e=x, f=y na orientação final
+    const itemsNormalizados = items.map(item => {
+      const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+      // tx[4] = X visual final, tx[5] = Y visual final (origem topo-esquerda)
+      // Ajuste: subtrair item.height para que Y represente o TOPO da caixa do texto,
+      // não a baseline (conforme documentação PDF.js v3+)
+      const xVis = tx[4];
+      const yVis = tx[5] - (item.height || 0);
+      // Estimar largura visual aplicando escala da transformação
+      const scaleX = Math.hypot(tx[0], tx[1]);
+      const scaleOriginal = Math.hypot(item.transform[0], item.transform[1]) || 1;
+      const widthVis = (item.width || 0) * (scaleX / scaleOriginal);
+      return {
+        yVis,
+        xVis,
+        x1Vis: xVis + widthVis,
+        str: item.str
+      };
+    });
+
+    // Agrupar por linha — tolerância baseada na altura da fonte
+    // Em CNIS típico fonte ~9-12px → tolerância 4-5px funciona bem
+    const linhas = {};
+    itemsNormalizados.forEach(it => {
+      // Arredondar Y para o "balde" de linha mais próximo (tolerância de 4px)
+      const y = Math.round(it.yVis / 4) * 4;
+      if (!linhas[y]) linhas[y] = [];
+      linhas[y].push(it);
+    });
+
+    // Ordenar Ys de cima para baixo
+    const ysOrdenados = Object.keys(linhas).map(Number).sort((a, b) => a - b);
+
+    ysOrdenados.forEach(y => {
+      const itemsLinha = linhas[y].sort((a, b) => a.xVis - b.xVis);
+      let textoLinha = '';
+      let xAnterior = null;
+      itemsLinha.forEach(it => {
+        if (xAnterior !== null && (it.xVis - xAnterior) > 2.5) {
+          textoLinha += ' ';
+        }
+        textoLinha += it.str;
+        xAnterior = it.x1Vis;
+      });
+      if (textoLinha.trim()) {
+        linhasFinais.push(textoLinha);
+      }
+    });
+
+    linhasFinais.push(''); // separador de página
+  }
+  return linhasFinais.join('\n');
+}
+
+// ----- FALLBACK: reconstrução simples sem coordenadas ---------------
+// Quando o método principal falha (rotação não detectada, layout exótico),
+// concatena todos os items na ordem em que vêm e usa quebras heurísticas.
+async function reconstruirTextoSimples(pdf) {
+  const linhas = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    let textoLinha = '';
+    let ultimoY = null;
+    for (const item of content.items) {
+      const y = Math.round(item.transform[5]);
+      // Se mudou a posição Y (mais de 3 pixels), começa nova linha
+      if (ultimoY !== null && Math.abs(y - ultimoY) > 3) {
+        if (textoLinha.trim()) linhas.push(textoLinha.trim());
+        textoLinha = '';
+      }
+      textoLinha += item.str + (item.hasEOL ? '\n' : ' ');
+      ultimoY = y;
+    }
+    if (textoLinha.trim()) linhas.push(textoLinha.trim());
+    linhas.push('');
+  }
+  // Normalizar espaços
+  return linhas.map(l => l.replace(/\s+/g, ' ').trim()).join('\n');
+}
+
+// ----- PARSER DO CNIS (validado contra layout Meu INSS) -------------
+function parseCNIS(texto) {
+  const dados = { nome: '', vinculos: [] };
+
+  // 1) NOME — aparece como "Nome: FULANA DE TAL" antes de "Data de nascimento"
+  const mNome = texto.match(/Nome\s*:?\s*([A-ZÁÉÍÓÚÂÊÔÀÃÕÇÑ][A-ZÁÉÍÓÚÂÊÔÀÃÕÇÑ\s]+?)(?:Data\s+de\s+nascimento|Nome\s+da\s+m[aãä]e|\n|$)/);
+  if (mNome) {
+    dados.nome = mNome[1].trim().replace(/\s+/g, ' ');
+  }
+
+  // 2) VÍNCULOS — estratégia A: linha-por-linha
+  const tiposFiliado = [
+    'Empregado ou Agente Público', 'Empregado Doméstico', 'Trabalhador Avulso',
+    'Contribuinte Individual', 'Facultativo', 'Microempreendedor Individual',
+    'Segurado Especial', 'Empregado ou Agente', 'Público'
+  ];
+
+  const linhas = texto.split('\n');
+  linhas.forEach(linhaRaw => {
+    let linha = linhaRaw;
+    tiposFiliado.forEach(t => { linha = linha.replace(t, ''); });
+    linha = linha.replace(/\s+/g, ' ').trim();
+    if (!linha) return;
+
+    const datas = linha.match(/\d{2}\/\d{2}\/\d{4}/g);
+    if (!datas || datas.length < 2) return;
+
+    // Padrão flexível: SEQ + (1 ou 2 códigos numéricos) + EMPREGADOR + DATAS
+    // Em alguns CNIS o NIT está na mesma linha (2 códigos antes do empregador),
+    // em outros está em linha separada (apenas 1 código antes do empregador)
+    let mInicio = linha.match(/^(\d{1,3})\s+([\d\.\-\/]+)\s+([\d\.\-\/]+)\s+(.+)$/);
+    let resto;
+    if (mInicio) {
+      // Verificar se o terceiro grupo é um código (só números/pontos/barras) — se for, é o caso NIT+Cód
+      // Se o terceiro grupo já começar com letra, é o caso de apenas Seq + 1 código + empregador
+      const terceiro = mInicio[3];
+      if (/^[A-ZÁÉÍÓÚÇ]/.test(terceiro)) {
+        // Caso: SEQ + 1 código + empregador...
+        resto = terceiro + ' ' + mInicio[4];
+      } else {
+        resto = mInicio[4];
+      }
+    } else {
+      // Tentar padrão com 1 código apenas: SEQ + CÓDIGO + EMPREGADOR
+      mInicio = linha.match(/^(\d{1,3})\s+([\d\.\-\/]+)\s+(.+)$/);
+      if (!mInicio) return;
+      resto = mInicio[3];
+    }
+
+    const mResto = resto.match(/^(.+?)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})(?:\s+(\d{2}\/\d{4}))?\s*$/);
+    if (!mResto) return;
+
+    const empregadorEMatricula = mResto[1];
+    const dtIni = mResto[2];
+    const dtFim = mResto[3];
+
+    // Empregador deve ter pelo menos uma letra
+    if (!/[A-Za-zÁ-Úá-ú]/.test(empregadorEMatricula)) return;
+
+    let empregador, matricula = '';
+    const mMat = empregadorEMatricula.match(/^(.+?)\s+(\d{3,})$/);
+    if (mMat) { empregador = mMat[1]; matricula = mMat[2]; }
+    else { empregador = empregadorEMatricula; }
+
+    const ano = parseInt(dtIni.split('/')[2]);
+    if (ano < 1950 || ano > new Date().getFullYear() + 1) return;
+
+    let tipo = 'empregado';
+    if (linhaRaw.includes('Contribuinte Individual')) tipo = 'ci';
+    else if (linhaRaw.includes('Facultativo')) tipo = 'facultativo';
+    else if (linhaRaw.includes('Microempreendedor')) tipo = 'mei';
+    else if (linhaRaw.includes('Doméstico') || linhaRaw.includes('Domestico')) tipo = 'domestica';
+
+    dados.vinculos.push({ empregador: empregador.trim(), inicio: dtIni, fim: dtFim, tipo });
+  });
+
+  // 3) ESTRATÉGIA B (fallback): se nenhum vínculo foi encontrado, buscar
+  // padrões "DATA_INÍCIO DATA_FIM ÚLT_REMUN" em qualquer posição do texto,
+  // retroagindo para identificar o empregador
+  if (dados.vinculos.length === 0) {
+    // Texto plano normalizado (sem quebras de linha)
+    const textoPlano = texto.replace(/\s+/g, ' ');
+    // Padrão: "EMPREGADOR ... DD/MM/AAAA DD/MM/AAAA MM/AAAA"
+    // Empregador é tudo que vem antes (até 100 chars), pegando palavras em CAIXA ALTA
+    const re = /(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{4})/g;
+    let m;
+    while ((m = re.exec(textoPlano)) !== null) {
+      const dtIni = m[1], dtFim = m[2];
+      const ano = parseInt(dtIni.split('/')[2]);
+      if (ano < 1950 || ano > new Date().getFullYear() + 1) continue;
+
+      // Buscar empregador no texto anterior (até 200 chars antes)
+      const inicio = Math.max(0, m.index - 200);
+      const trechoAntes = textoPlano.substring(inicio, m.index);
+      // Pegar a última sequência de palavras em CAIXA ALTA (provavelmente o nome da empresa)
+      const empMatch = trechoAntes.match(/([A-ZÁÉÍÓÚÇÑ][A-ZÁÉÍÓÚÇÑ\s\&\-\.0-9]{4,})\s*(?:\d{3,}\s*)?$/);
+      let empregador = empMatch ? empMatch[1].trim() : 'Vínculo (CNIS)';
+      // Limpar termos que não são empregador
+      empregador = empregador.replace(/^(Empregado ou Agente|Empregado Doméstico|Contribuinte Individual|Facultativo|Microempreendedor Individual|Público)\s*/i, '');
+      empregador = empregador.replace(/\s+(Empregado|Público|LTDA)\s*$/, ' LTDA').trim();
+      // Se ainda for muito curto ou só números, usar genérico
+      if (empregador.length < 4 || /^[\d\s\.\/\-]+$/.test(empregador)) {
+        empregador = 'Vínculo extraído do CNIS';
+      }
+
+      dados.vinculos.push({
+        empregador: empregador.substring(0, 80),
+        inicio: dtIni,
+        fim: dtFim,
+        tipo: 'empregado'
+      });
+    }
+  }
+
+  // Dedup por (inicio, fim, empregador)
+  const vistos = new Set();
+  dados.vinculos = dados.vinculos.filter(v => {
+    const key = `${v.inicio}|${v.fim}|${v.empregador}`;
+    if (vistos.has(key)) return false;
+    vistos.add(key);
+    return true;
+  });
+
+  return dados;
+}
+
+// ====================================================================
+// LÓGICA DE ANÁLISE — Qualidade de Segurada + Cenário Duplo
+// ====================================================================
+
+function parseDate(str) {
+  if (!str) return null;
+  str = str.trim().toUpperCase();
+  if (str === 'EM ABERTO' || str === 'ABERTO' || str === '') return new Date();
+  const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]));
+  const iso = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (iso) return new Date(parseInt(iso[1]), parseInt(iso[2]) - 1, parseInt(iso[3]));
+  return null;
+}
+
+function diffMeses(d1, d2) {
+  if (!d1 || !d2) return 0;
+  let meses = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+  return Math.max(0, meses + 1);
+}
+
+function addMeses(d, n) {
+  const r = new Date(d);
+  r.setMonth(r.getMonth() + n);
+  return r;
+}
+
+function formatDate(d) {
+  if (!d) return '—';
+  return d.toLocaleDateString('pt-BR');
+}
+
+// ============================================================================
+// FUNÇÕES FINANCEIRAS — v1.8
+// Cálculo de quanto a cliente vai receber líquido e quanto precisa investir
+// ============================================================================
+
+const SALARIO_MINIMO_2026 = 1621.00;
+
+function formatBRL(v) {
+  return 'R$ ' + v.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+// ============================================================================
+// COMPETÊNCIAS GPS REALISTAS — v3.0
+// Calcula quais competências a cliente AINDA pode pagar antes do parto.
+// Regra: cada competência (mês) vence até o dia 15 do mês seguinte.
+// Exemplo: hoje = 25/05/2026, parto = 26/05/2026.
+//   - Competência 05/2026 vence em 15/06/2026 → AINDA PAGÁVEL
+//   - Resultado: 1 competência pagável
+// ============================================================================
+
+function primeiroDiaDoMes(d) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+function ultimoDiaDoMes(d) {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+}
+
+function vencimentoGPS(competencia) {
+  // GPS vence dia 15 do mês SEGUINTE à competência
+  return new Date(competencia.getFullYear(), competencia.getMonth() + 1, 15);
+}
+
+function competenciasPagaveisAteParto(dataParto, hoje) {
+  // Retorna lista ordenada de competências que a cliente ainda pode pagar:
+  //   - Competência do mês corrente em diante até o mês do parto
+  //   - Inclui o mês do parto (pagamento até dia 15 do mês seguinte ao parto)
+  //   - Considera competências cujo vencimento ainda não passou
+  hoje = hoje || new Date();
+  const competencias = [];
+
+  // Começa do mês corrente
+  let comp = primeiroDiaDoMes(hoje);
+  const limitParto = primeiroDiaDoMes(dataParto);
+
+  while (comp <= limitParto) {
+    const vencimento = vencimentoGPS(comp);
+    // Só inclui se ainda dá tempo de pagar (vencimento > hoje)
+    if (vencimento >= hoje) {
+      competencias.push({
+        competencia: comp,
+        label: `${String(comp.getMonth() + 1).padStart(2, '0')}/${comp.getFullYear()}`,
+        vencimento: vencimento
+      });
+    }
+    // Próxima competência
+    comp = new Date(comp.getFullYear(), comp.getMonth() + 1, 1);
+  }
+  return competencias;
+}
+
+function mesesAtePartoRealista(dataParto) {
+  // Conta meses entre hoje e o parto, considerando a janela GPS
+  return competenciasPagaveisAteParto(dataParto).length;
+}
+
+function partoIminente(dataParto) {
+  // "Parto iminente" = menos de 30 dias até o parto
+  const hoje = new Date();
+  const diffDias = Math.ceil((dataParto - hoje) / (1000 * 60 * 60 * 24));
+  return diffDias <= 30 && diffDias >= 0;
+}
+
+function diasAteOParto(dataParto) {
+  const hoje = new Date();
+  return Math.ceil((dataParto - hoje) / (1000 * 60 * 60 * 24));
+}
+
+// Detecta competências abaixo do salário mínimo no CNIS (a partir de 11/2019)
+// Lógica: se a remuneração da competência é menor que o SM vigente, é candidata
+// a complementação (art. 19-E do Decreto 3.048/99 + art. 195 §14 CF).
+function detectarCompetenciasAbaixoMinimo(vinculos, categoria) {
+  // Só faz sentido para categorias que precisam atingir o piso (todas exceto especial)
+  if (categoria === 'especial') return [];
+
+  // Esta função usa os vínculos já parseados. Como não temos dados de
+  // remunerações por competência no parser atual, vamos sinalizar a
+  // existência de vínculos curtos (menos de 1 mês) que sugerem possível
+  // recolhimento abaixo do piso, sem fazer afirmação categórica.
+  const candidatos = [];
+  vinculos.forEach(v => {
+    const duracao = diffMeses(v.inicio, v.fim);
+    if (duracao < 1 && v.inicio.getFullYear() >= 2019) {
+      candidatos.push({
+        empregador: v.empregador,
+        inicio: v.inicio,
+        fim: v.fim,
+        motivo: 'vínculo com duração menor que 1 mês'
+      });
+    }
+  });
+  return candidatos;
+}
+
+// Calcula desconto progressivo da contribuição previdenciária da segurada
+// (Tabela INSS 2026 — empregados, domésticos e avulsos)
+function calcularDescontoINSSProgressivo(salario) {
+  // Faixas 2026 (proporcionalmente reajustadas com o piso de R$ 1.621):
+  const faixas = [
+    { ate: 1621.00, aliquota: 0.075, deduz: 0 },
+    { ate: 2906.00, aliquota: 0.09, deduz: 24.32 },
+    { ate: 4359.00, aliquota: 0.12, deduz: 111.50 },
+    { ate: 8475.55, aliquota: 0.14, deduz: 198.69 }
+  ];
+  for (const f of faixas) {
+    if (salario <= f.ate) {
+      return Math.max(0, salario * f.aliquota - f.deduz);
+    }
+  }
+  // Acima do teto: desconto fixo sobre o teto
+  return 8475.55 * 0.14 - 198.69;
+}
+
+// Define se a categoria sofre desconto de contribuição previdenciária no SM
+function categoriaTemDescontoINSS(categoria) {
+  // TODAS as categorias contributivas sofrem desconto sobre o SM.
+  // EXCEÇÃO: apenas segurada especial rural (sem base contributiva em dinheiro).
+  return categoria !== 'especial';
+}
+
+// Define a alíquota aplicável conforme categoria e plano da segurada
+// Fundamento: item 11.3 do manual COAD/INSS:
+//   "Durante a percepção do salário-maternidade, o INSS descontará a
+//   contribuição da segurada contribuinte individual, equivalente a:
+//   a) 20% sobre o salário de contribuição, observado o limite máximo; ou
+//   b) 11% sobre o salário-mínimo, se a segurada for optante pela exclusão
+//      do direito ao benefício de aposentadoria por tempo de contribuição."
+function tipoDescontoCategoria(categoria, planoAnterior) {
+  // CLT, doméstica, avulsa — desconto pelo empregador, tabela progressiva
+  if (['empregada', 'domestica', 'avulsa'].includes(categoria)) {
+    return { tipo: 'progressiva' };
+  }
+  // Segurada especial rural — sem desconto
+  if (categoria === 'especial') {
+    return { tipo: 'isenta' };
+  }
+  // Individual, facultativa, MEI — o INSS desconta direto no benefício,
+  // alíquota CONFORME O PLANO QUE A SEGURADA JÁ USAVA:
+  //   - quem contribuía a 20% (plano normal): mantém 20% no SM
+  //   - quem contribuía a 11% ou 5% (plano simplificado/MEI/baixa renda): 11% no SM
+  // O plano "anterior" precisa ser informado pela atendente quando preencher o caso.
+  if (planoAnterior === 'normal_20') {
+    return { tipo: 'fixa', aliquota: 0.20, descricao: '20% sobre o salário de contribuição (plano normal)' };
+  }
+  // Default: plano simplificado / MEI / baixa renda → 11% sobre o SM
+  return { tipo: 'fixa', aliquota: 0.11, descricao: '11% sobre o salário mínimo (plano simplificado / MEI / baixa renda)' };
+}
+
+// Calcula o valor mensal do salário-maternidade conforme a categoria
+function calcularValorMensalSM(categoria) {
+  // No escritório, na esmagadora maioria dos casos o SM é de 1 SM:
+  // - Especial rural, MEI, facultativa plano simplificado: 1 SM
+  // - Individual: média 12 últimas (geralmente 1 SM no plano simplificado)
+  // - CLT/doméstica/avulsa: último salário (assumimos 1 SM por padrão da clientela)
+  // Esta calculadora trabalha com o valor base de 1 SM. Se a cliente tiver salário
+  // maior, a atendente vê a fundamentação técnica e ajusta manualmente.
+  return SALARIO_MINIMO_2026;
+}
+
+// Calcula o resultado financeiro completo do salário-maternidade
+function calcularResultadoFinanceiro(categoria, fatoGerador) {
+  const valorMensal = calcularValorMensalSM(categoria);
+  const dias = fatoGerador === 'aborto' ? 14 : 120;
+  const mesesSM = dias / 30; // 120/30 = 4 ; 14/30 ≈ 0,467
+  const valorBrutoSM = valorMensal * mesesSM;
+
+  // 13º proporcional ao período da licença no ano
+  // Fórmula: (salário mensal / 12) * meses de gozo
+  const decimoTerceiro = (valorMensal / 12) * mesesSM;
+
+  // Plano de contribuição da segurada (vem do formulário)
+  const planoAnterior = $('#plano_contribuicao') ? $('#plano_contribuicao').value : 'simplificado';
+
+  // Desconto da contribuição previdenciária da segurada
+  let descontoINSS = 0;
+  let aliquotaInfo = '';
+  const tipoDesc = tipoDescontoCategoria(categoria, planoAnterior);
+  const totalBruto = valorBrutoSM + decimoTerceiro;
+
+  if (tipoDesc.tipo === 'progressiva') {
+    // CLT, doméstica, avulsa — tabela progressiva (art. 100-C Decreto 3.048/99)
+    descontoINSS = calcularDescontoINSSProgressivo(valorMensal) * mesesSM
+                 + calcularDescontoINSSProgressivo(decimoTerceiro);
+    aliquotaInfo = 'tabela progressiva (7,5% a 14%)';
+  } else if (tipoDesc.tipo === 'fixa') {
+    // Individual, facultativa, MEI — desconto pelo INSS conforme plano da segurada
+    // 11% (plano simplificado/MEI/baixa renda) ou 20% (plano normal)
+    descontoINSS = totalBruto * tipoDesc.aliquota;
+    aliquotaInfo = tipoDesc.descricao;
+  }
+  // tipo 'isenta': especial rural — sem desconto
+
+  // IRRF — na faixa do salário mínimo (R$ 1.621), está isenta até R$ 5.000
+  // (Lei 15.270/25, vigente desde 01/01/2026)
+  const descontoIRRF = 0; // para 1 SM, sempre isento em 2026
+
+  const totalLiquido = totalBruto - descontoINSS - descontoIRRF;
+
+  return {
+    valorMensal,
+    dias,
+    mesesSM,
+    valorBrutoSM,
+    decimoTerceiro,
+    totalBruto,
+    descontoINSS,
+    descontoIRRF,
+    totalLiquido,
+    temDesconto: categoriaTemDescontoINSS(categoria),
+    tipoDesconto: tipoDesc.tipo,
+    aliquotaInfo,
+    planoAnterior,
+    motivoIsencaoDesconto: !categoriaTemDescontoINSS(categoria) ?
+      'Segurada especial rural não sofre desconto sobre o salário-maternidade, pois sua contribuição se dá pela produção rural (regime de economia familiar — art. 25 da Lei 8.212/91), não em dinheiro.'
+      : null
+  };
+}
+
+// Planos de contribuição disponíveis para a cliente
+function obterPlanosContribuicao(categoria) {
+  // Define quais planos fazem sentido propor para cada categoria
+  const planos = [];
+
+  if (['individual', 'facultativa', 'desempregada'].includes(categoria)) {
+    // Plano simplificado (mais comum) — 11% sobre SM
+    planos.push({
+      nome: 'Plano Simplificado (11%)',
+      codigoGPS: '1473 (Facultativo) / 1163 (Individual)',
+      codigoTrimestral: '1490 (Facultativo) / 1180 (Individual)',
+      aliquota: 0.11,
+      base: SALARIO_MINIMO_2026,
+      valor: SALARIO_MINIMO_2026 * 0.11,
+      observacao: 'Mais comum. Dá direito a salário-maternidade, auxílio-doença, aposentadoria por idade. NÃO dá direito a aposentadoria por tempo de contribuição.',
+      recomendado: true
+    });
+    // Plano normal — 20%
+    planos.push({
+      nome: 'Plano Normal (20%)',
+      codigoGPS: '1406 (Facultativo) / 1007 (Individual)',
+      codigoTrimestral: '1457 (Facultativo) / 1155 (Individual)',
+      aliquota: 0.20,
+      base: SALARIO_MINIMO_2026,
+      valor: SALARIO_MINIMO_2026 * 0.20,
+      observacao: 'Mais caro, mas dá direito a TODOS os benefícios, inclusive aposentadoria por tempo de contribuição.',
+      recomendado: false
+    });
+    // Baixa renda — 5%
+    planos.push({
+      nome: 'Facultativa Baixa Renda (5%)',
+      codigoGPS: '1929 (mensal apenas)',
+      codigoTrimestral: null,
+      aliquota: 0.05,
+      base: SALARIO_MINIMO_2026,
+      valor: SALARIO_MINIMO_2026 * 0.05,
+      observacao: 'Só para quem está no CadÚnico, sem renda própria e com dedicação exclusiva ao trabalho doméstico no próprio lar. Risco de o INSS não reconhecer se requisitos não estiverem em ordem.',
+      recomendado: false,
+      atencao: true
+    });
+  } else if (categoria === 'mei') {
+    planos.push({
+      nome: 'DAS-MEI (5%)',
+      codigoGPS: 'DAS (não é GPS)',
+      codigoTrimestral: null,
+      aliquota: 0.05,
+      base: SALARIO_MINIMO_2026,
+      valor: SALARIO_MINIMO_2026 * 0.05,
+      observacao: 'A contribuição do MEI já está embutida no DAS mensal. Apenas confirmar que está pagando o DAS em dia.',
+      recomendado: true
+    });
+  }
+
+  return planos;
+}
+
+function coletarVinculos() {
+  const rows = $$('.vinculo-row');
+  const lista = [];
+  rows.forEach(row => {
+    const emp = row.querySelector('.v-emp').value;
+    const inicio = parseDate(row.querySelector('.v-inicio').value);
+    const fimRaw = row.querySelector('.v-fim').value;
+    const fim = parseDate(fimRaw) || new Date();
+    const tipo = row.querySelector('.v-tipo')?.value || 'empregado';
+    if (inicio) lista.push({ empregador: emp, inicio, fim, meses: diffMeses(inicio, fim), tipo });
+  });
+  return lista.sort((a, b) => a.inicio - b.inicio);
+}
+
+function calcularPeriodoDeGraca(dataUltimoVinculo, tinha120, desempregoInvol, categoria) {
+  let meses = 12;
+  if (categoria === 'facultativa') meses = 6;
+  if (tinha120) meses += 12;
+  if (desempregoInvol) meses += 12;
+  return { meses, fimGraca: addMeses(dataUltimoVinculo, meses) };
+}
+
+function totalContribuicoes(vinculos, dataParto) {
+  let total = 0;
+  vinculos.forEach(v => {
+    const fimEfetivo = v.fim > dataParto ? dataParto : v.fim;
+    if (v.inicio <= dataParto) total += diffMeses(v.inicio, fimEfetivo);
+  });
+  return total;
+}
+
+function contribuicoesAposPerda(vinculos, fimGraca, dataParto) {
+  let total = 0;
+  vinculos.forEach(v => {
+    if (v.inicio > fimGraca && v.inicio <= dataParto) {
+      const fimEfetivo = v.fim > dataParto ? dataParto : v.fim;
+      total += diffMeses(v.inicio, fimEfetivo);
+    }
+  });
+  return total;
+}
+
+function temVinculoAtivoNoParto(vinculos, dataParto) {
+  return vinculos.some(v => v.inicio <= dataParto && v.fim >= dataParto);
+}
+
+function analisar() {
+  const categoria = $('#categoria').value;
+  const dataParto = parseDate($('#data_parto').value);
+  if (!categoria) { alert('Selecione a categoria da segurada.'); return; }
+  if (!dataParto) { alert('Informe a data do parto / fato gerador.'); return; }
+
+  const fatoGerador = $('#fato_gerador').value;
+  const vinculos = coletarVinculos();
+
+  const ehDuploCenario = dataParto > DATA_CORTE;
+
+  let qualidadeAtual = analisarQualidadeSegurada(categoria, vinculos, dataParto);
+  let contribTotal = totalContribuicoes(vinculos, dataParto);
+
+  let cenarioProtetivo = null;
+  if (ehDuploCenario) {
+    cenarioProtetivo = analisarCenarioProtetivo(categoria, vinculos, dataParto, qualidadeAtual);
+    cenarioProtetivo = ajustarCenarioProtetivoComPerda(cenarioProtetivo, dataParto);
+  }
+
+  // Armazenar dados globalmente para geração de PDFs
+  window.__analiseAtual = {
+    categoria, fatoGerador, dataParto, vinculos,
+    qualidade: qualidadeAtual, contribTotal,
+    duplo: ehDuploCenario, protetivo: cenarioProtetivo,
+    nomeCliente: $('#nome').value || 'Cliente'
+  };
+
+  renderizar(categoria, fatoGerador, dataParto, qualidadeAtual, contribTotal, ehDuploCenario, cenarioProtetivo);
+  showSection('resultado');
+}
+
+function analisarQualidadeSegurada(categoria, vinculos, dataParto) {
+  const resultado = {
+    temQualidade: false, motivo: '', detalhes: [],
+    emPeriodoDeGraca: false, fimGraca: null,
+    contribTotal: totalContribuicoes(vinculos, dataParto)
+  };
+
+  if (categoria === 'especial') {
+    const mesesRural = parseInt($('#meses_rural').value || '0');
+    const prova = $('#prova_rural').value;
+    if (mesesRural >= 10 && (prova === 'razoavel' || prova === 'forte')) {
+      resultado.temQualidade = true;
+      resultado.motivo = 'Atividade rural comprovada nos 10 meses anteriores ao parto (art. 39, parágrafo único, Lei 8.213/91 c/c Súmula 54/TNU).';
+    } else if (mesesRural >= 10 && prova === 'fraca') {
+      resultado.motivo = 'Atividade rural alegada, mas prova material frágil. Risco alto de indeferimento administrativo. Necessária complementação probatória.';
+    } else {
+      resultado.motivo = 'Não comprovados 10 meses de atividade rural anteriores ao parto.';
+    }
+    return resultado;
+  }
+
+  const vinculoAtivo = temVinculoAtivoNoParto(vinculos, dataParto);
+  if (vinculoAtivo) {
+    resultado.temQualidade = true;
+    resultado.motivo = 'Segurada com vínculo/contribuição ativa na data do fato gerador.';
+    return resultado;
+  }
+
+  if (vinculos.length === 0) {
+    resultado.motivo = 'Nenhum vínculo ou contribuição informada. Sem qualidade de segurada.';
+    return resultado;
+  }
+
+  const ultimoVinculo = vinculos[vinculos.length - 1];
+  const dataFimUltimo = ultimoVinculo.fim;
+  const tinha120 = $('#tinha_120').value === 'sim';
+  const desempregoInvol = $('#desemprego_involuntario').value === 'sim';
+
+  const graca = calcularPeriodoDeGraca(dataFimUltimo, tinha120, desempregoInvol, categoria);
+  resultado.fimGraca = graca.fimGraca;
+  resultado.mesesGraca = graca.meses;
+  resultado.dataFimUltimo = dataFimUltimo;
+
+  if (dataParto <= graca.fimGraca) {
+    resultado.temQualidade = true;
+    resultado.emPeriodoDeGraca = true;
+    resultado.motivo = `Em período de graça (art. 15 da Lei 8.213/91). Qualidade mantida até ${formatDate(graca.fimGraca)} (${graca.meses} meses após ${formatDate(dataFimUltimo)}).`;
+  } else {
+    resultado.motivo = `Período de graça expirou em ${formatDate(graca.fimGraca)} — perda da qualidade de segurada antes do fato gerador.`;
+    resultado.contribAposPerda = contribuicoesAposPerda(vinculos, graca.fimGraca, dataParto);
+    // QUALIDADE: basta 1 contribuição em dia após a perda para recuperar a qualidade
+    // (art. 15, II, Lei 8.213/91 + regra geral do RGPS)
+    // As 5 contribuições do art. 27-A são para reativar a CARÊNCIA anterior,
+    // não para recuperar qualidade.
+    if (resultado.contribAposPerda >= 1) {
+      resultado.temQualidade = true;
+      resultado.motivo = `Houve perda da qualidade em ${formatDate(graca.fimGraca)}, mas RECUPERADA com ${resultado.contribAposPerda} contribuição(ões) após a perda — pela regra atual do STF (ADIs 2.110 e 2.111), basta a qualidade para o salário-maternidade.`;
+      // Sinalizar quantas contribuições ainda faltam para reativar carência anterior
+      // (relevante apenas no cenário protetivo de parto pós 31/12/2026)
+      resultado.contribParaReativarCarencia = Math.max(0, 5 - resultado.contribAposPerda);
+    } else {
+      resultado.motivo += ` Sem nenhuma contribuição após a perda — não há qualidade de segurada.`;
+      resultado.contribFaltam = 1; // Falta apenas 1 contribuição para recuperar qualidade
+      resultado.contribParaReativarCarencia = 5; // Para reativar carência anterior (cenário protetivo)
+    }
+  }
+  return resultado;
+}
+
+function analisarCenarioProtetivo(categoria, vinculos, dataParto, qualidadeAtual) {
+  if (['empregada', 'domestica', 'avulsa'].includes(categoria)) {
+    return { isenta: true, texto: 'Esta categoria é dispensada de carência mesmo na regra antiga (art. 26, VI, Lei 8.213/91). O cenário protetivo não muda a análise — basta a qualidade de segurada.' };
+  }
+  if (categoria === 'especial') {
+    return { isenta: false, texto: 'Segurada especial mantém a exigência de 10 meses de atividade rural anteriores ao parto. Análise idêntica ao cenário atual.' };
+  }
+
+  // ÁRVORE CONCEITUAL CORRETA:
+  // - Pela regra antiga (que pode voltar): carência = 10 contribuições no total
+  // - Se houve perda da qualidade: contribuições anteriores SÓ contam após
+  //   cumpridas 5 contribuições do art. 27-A (que "revalidam" a contagem)
+  // - Para blindagem, somar contribuições já feitas + necessárias até atingir 10
+
+  const contribTotal = qualidadeAtual.contribTotal;
+  const contribAposPerda = qualidadeAtual.contribAposPerda || 0;
+  const houvePerda = qualidadeAtual.fimGraca && dataParto > qualidadeAtual.fimGraca;
+
+  const META_CARENCIA = 10;
+  let carenciaNecessaria = META_CARENCIA;
+  let contribCumpridas, faltam, fundamento;
+
+  if (houvePerda) {
+    // Houve perda: precisa 5 do art. 27-A para reativar a contagem anterior
+    if (contribAposPerda >= 5) {
+      // Já reativou a carência anterior — somar todas as contribuições válidas
+      contribCumpridas = contribTotal;
+      fundamento = 'Carência da regra antiga (art. 25, III) — 10 contribuições no total. As 5 contribuições já feitas após a perda (art. 27-A) reativaram a contagem das contribuições anteriores.';
+    } else {
+      // Ainda não reativou — só conta o que veio depois da perda + ainda precisa
+      // fechar as 5 do art. 27-A primeiro
+      const contribCumpridasAntes = contribTotal - contribAposPerda;
+      const faltamPara27A = 5 - contribAposPerda;
+      contribCumpridas = contribAposPerda;
+      // Para fechar a blindagem total: faltamPara27A + (10 - contribTotal_apos_revalidacao)
+      // Como após cumpridas as 5 do 27-A todas as anteriores voltam a contar:
+      // contribTotal_final = contribTotal (todas) + (contribuições além das 5 do 27-A)
+      // Para atingir 10, precisa: faltamPara27A + max(0, 10 - contribTotal)
+      const faltamAlemDoArt27A = Math.max(0, META_CARENCIA - contribTotal);
+      faltam = faltamPara27A + faltamAlemDoArt27A;
+      fundamento = `Houve perda da qualidade. Para blindagem completa: primeiro fechar as 5 contribuições do art. 27-A (faltam ${faltamPara27A}), que reativam a contagem das ${contribCumpridasAntes} contribuição(ões) anterior(es), depois completar até 10 no total (faltam mais ${faltamAlemDoArt27A} além das do 27-A).`;
+      return {
+        isenta: false,
+        houvePerda,
+        carenciaNecessaria: META_CARENCIA,
+        contribCumpridas,
+        contribAnteriores: contribCumpridasAntes,
+        faltamArt27A: faltamPara27A,
+        faltamAlemArt27A: faltamAlemDoArt27A,
+        faltam,
+        mesesAtePartO: 0, // será calculado abaixo
+        viavel: false,
+        fundamento,
+        recomendacao: ''
+      };
+    }
+  } else {
+    // Sem perda: simplesmente contar todas as contribuições válidas
+    contribCumpridas = contribTotal;
+    fundamento = 'Carência da regra antiga (art. 25, III) — 10 contribuições no total.';
+  }
+
+  faltam = Math.max(0, carenciaNecessaria - contribCumpridas);
+
+  // Usar competências GPS realistas
+  const competenciasPagaveis = competenciasPagaveisAteParto(dataParto);
+  const totalCompetenciasPagaveis = competenciasPagaveis.length;
+
+  let viavel = false, recomendacao = '';
+  if (faltam === 0) {
+    viavel = true;
+    recomendacao = 'Carência da regra antiga já cumprida (10+ contribuições). Cliente protegida mesmo em caso de mudança da regra.';
+  } else if (totalCompetenciasPagaveis >= faltam) {
+    viavel = true;
+    recomendacao = `Há tempo para completar as ${faltam} contribuição(ões) faltantes até atingir 10 no total (${totalCompetenciasPagaveis} competências GPS pagáveis). Orientar contribuições mensais como blindagem.`;
+  } else {
+    recomendacao = `INVIÁVEL atingir as 10 contribuições da regra antiga: faltam ${faltam}, mas só restam ${totalCompetenciasPagaveis} competências GPS pagáveis até o parto. Pagar o máximo possível e preparar argumentação subsidiária.`;
+  }
+
+  return {
+    isenta: false,
+    houvePerda,
+    carenciaNecessaria,
+    contribCumpridas,
+    faltam,
+    mesesAtePartO: totalCompetenciasPagaveis,
+    competenciasPagaveis,
+    viavel,
+    fundamento,
+    recomendacao
+  };
+}
+
+// Helper: pós-cálculo do cenário protetivo para o caso "perda sem art. 27-A reativado"
+function ajustarCenarioProtetivoComPerda(protetivo, dataParto) {
+  if (!protetivo.houvePerda || protetivo.contribAposPerda >= 5) return protetivo;
+  const competenciasPagaveis = competenciasPagaveisAteParto(dataParto);
+  protetivo.mesesAtePartO = competenciasPagaveis.length;
+  protetivo.competenciasPagaveis = competenciasPagaveis;
+  protetivo.viavel = competenciasPagaveis.length >= protetivo.faltam;
+  if (protetivo.viavel) {
+    protetivo.recomendacao = `Há tempo para cumprir as ${protetivo.faltamArt27A} contribuições do art. 27-A (reativando a contagem anterior) + ${protetivo.faltamAlemArt27A} adicional(is) para atingir 10 no total. ${competenciasPagaveis.length} competências GPS pagáveis.`;
+  } else {
+    protetivo.recomendacao = `INVIÁVEL blindagem completa: faltam ${protetivo.faltam} contribuição(ões) e só restam ${competenciasPagaveis.length} competências GPS pagáveis. Pagar o máximo possível.`;
+  }
+  return protetivo;
+}
+
+// ====================================================================
+// RENDERIZAÇÃO NARRATIVA — v1.7
+// Resultado orientado para a atendente, em linguagem direta.
+// Fundamentação jurídica fica recolhida atrás de botão expansível.
+// ====================================================================
+
+// Pega o primeiro nome para personalizar a narrativa
+function primeiroNome() {
+  const nome = $('#nome').value.trim();
+  if (!nome) return 'a cliente';
+  return nome.split(/\s+/)[0];
+}
+
+function tituloFormalCliente() {
+  const nome = $('#nome').value.trim();
+  if (!nome) return 'A cliente';
+  return nome;
+}
+
+// Devolve descrição amigável da categoria
+function categoriaAmigavel(cat) {
+  const m = {
+    empregada: 'empregada com carteira assinada',
+    domestica: 'empregada doméstica',
+    avulsa: 'trabalhadora avulsa',
+    individual: 'contribuinte individual (autônoma)',
+    mei: 'MEI',
+    facultativa: 'contribuinte facultativa',
+    especial: 'segurada especial (rural)',
+    desempregada: 'desempregada (em período de graça)'
+  };
+  return m[cat] || cat;
+}
+
+function renderizar(categoria, fatoGerador, dataParto, qualidade, contribTotal, duplo, protetivo) {
+  // ====== CLASSIFICAR O CENÁRIO ======
+  // A: parto até 31/12/2026 + qualidade SIM  → VERDE simples
+  // B: parto até 31/12/2026 + qualidade NÃO  → VERMELHO
+  // C: parto pós + qualidade SIM + protetivo cumprido → VERDE BLINDADO
+  // D: parto pós + qualidade SIM + protetivo falta + viável → AMARELO (ação preventiva)
+  // E: parto pós + qualidade SIM + protetivo inviável  → AMARELO (risco residual)
+  // F: parto pós + qualidade NÃO → VERMELHO
+
+  let cenarioId;
+  if (!duplo) {
+    cenarioId = qualidade.temQualidade ? 'A' : 'B';
+  } else {
+    if (!qualidade.temQualidade) cenarioId = 'F';
+    else if (protetivo && protetivo.isenta) cenarioId = 'A'; // categoria dispensada de carência mesmo na regra antiga
+    else if (protetivo && protetivo.faltam === 0) cenarioId = 'C';
+    else if (protetivo && protetivo.viavel) cenarioId = 'D';
+    else cenarioId = 'E';
+  }
+
+  renderResultadoFinal(cenarioId, dataParto);
+  renderAtencaoPosEleicao(cenarioId, dataParto);
+  renderExplicacao(cenarioId, categoria, qualidade, dataParto, protetivo);
+  renderFinanceiro(cenarioId, categoria, fatoGerador, qualidade, protetivo, dataParto);
+  renderPlanoAcao(cenarioId, categoria, qualidade, dataParto, protetivo);
+  renderDetalhesTecnicos(categoria, qualidade, dataParto, contribTotal, duplo, protetivo, cenarioId);
+}
+
+// ====== BLOCO 1: VEREDICTO PRINCIPAL =========================================
+function renderResultadoFinal(cenarioId, dataParto) {
+  const nome = tituloFormalCliente();
+  const iminente = partoIminente(dataParto);
+  const dias = diasAteOParto(dataParto);
+
+  const cenarios = {
+    'A': {
+      cor: 'verde',
+      icone: '✅',
+      titulo: `${nome} TEM direito ao salário-maternidade`,
+      subtitulo: 'A análise confirma todos os requisitos legais. Caso pronto para o escritório fechar contrato e protocolar o requerimento administrativo após o nascimento.'
+    },
+    'B': {
+      cor: 'vermelho',
+      icone: '❌',
+      titulo: `${nome} NÃO tem qualidade de segurada hoje`,
+      subtitulo: 'A cliente não preenche os requisitos atuais. Veja abaixo a estratégia para recuperar a qualidade ou aplicar tese subsidiária.'
+    },
+    'C': {
+      cor: 'verde',
+      icone: '🛡️',
+      titulo: `${nome} TEM direito — e está totalmente protegida`,
+      subtitulo: 'O direito está garantido pela regra atual E também pela regra antiga (carência já cumprida). Caso ideal — pode tocar com segurança.'
+    },
+    'D': {
+      cor: 'amarelo',
+      icone: '⚠️',
+      titulo: `${nome} TEM direito hoje, mas é preciso AGIR PREVENTIVAMENTE`,
+      subtitulo: `O parto está previsto para depois de 31/12/2026. Se a regra mudar até lá, ${primeiroNome()} pode perder o direito — mas dá tempo de blindar o caso. Veja o plano de ação abaixo.`
+    },
+    'E': {
+      cor: 'amarelo',
+      icone: '⚠️',
+      titulo: `${nome} TEM direito hoje, mas há RISCO se a regra mudar`,
+      subtitulo: `O parto está previsto para depois de 31/12/2026 e não dá tempo de blindar totalmente. Se a regra antiga voltar antes do parto, o direito pode ser perdido.`
+    },
+    'F': {
+      cor: 'vermelho',
+      icone: '❌',
+      titulo: `${nome} NÃO tem qualidade de segurada hoje`,
+      subtitulo: 'A cliente não preenche os requisitos. Como o parto é depois de 31/12/2026, ainda há tempo de planejar. Veja o plano de ação.'
+    }
+  };
+
+  const c = cenarios[cenarioId];
+
+  // Adicionar destaque de URGÊNCIA se parto iminente (menos de 30 dias)
+  let avisoUrgencia = '';
+  if (iminente) {
+    const labelDias = dias <= 0
+      ? '<strong>PARTO HOJE OU JÁ OCORREU</strong>'
+      : dias === 1
+        ? '<strong>PARTO PREVISTO PARA AMANHÃ</strong>'
+        : `<strong>PARTO EM ${dias} DIAS</strong>`;
+
+    avisoUrgencia = `
+      <div class="aviso-urgencia">
+        <div class="aviso-urgencia-icone">🚨</div>
+        <div class="aviso-urgencia-conteudo">
+          <div class="aviso-urgencia-titulo">CASO URGENTE — ${labelDias}</div>
+          <div class="aviso-urgencia-texto">
+            Atendimento prioritário. O plano de ação abaixo já está calibrado para o tempo disponível.
+            Qualquer contribuição preventiva deve ser pago HOJE (próximo vencimento GPS: dia 15 do mês seguinte à competência).
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  $('#resultado-final-container').innerHTML = `
+    ${avisoUrgencia}
+    <div class="resultado-final ${c.cor}">
+      <span class="resultado-icone">${c.icone}</span>
+      <div class="resultado-titulo">${c.titulo}</div>
+      <div class="resultado-subtitulo">${c.subtitulo}</div>
+    </div>
+  `;
+}
+
+// ====== BLOCO 2: AVISO DESTACADO SOBRE PÓS-ELEIÇÃO =======================
+function renderAtencaoPosEleicao(cenarioId, dataParto) {
+  if (!['C', 'D', 'E', 'F'].includes(cenarioId)) {
+    $('#atencao-container').innerHTML = '';
+    return;
+  }
+
+  const dataPartoStr = formatDate(dataParto);
+
+  let textoExtra = '';
+  if (cenarioId === 'D') {
+    textoExtra = '<p><strong>A boa notícia:</strong> ainda dá tempo de agir agora e proteger o direito da cliente. Veja o plano de ação logo abaixo.</p>';
+  } else if (cenarioId === 'E') {
+    textoExtra = '<p><strong>Atenção:</strong> não dá mais tempo de cumprir a carência protetiva antes do parto. O direito depende exclusivamente de a regra atual continuar valendo até a data do parto.</p>';
+  } else if (cenarioId === 'C') {
+    textoExtra = '<p><strong>A cliente já está protegida</strong> mesmo nessa hipótese — a carência da regra antiga já foi cumprida.</p>';
+  }
+
+  $('#atencao-container').innerHTML = `
+    <div class="atencao-pos-eleicao">
+      <div class="titulo-atencao">⚡ Atenção: parto previsto para depois da eleição</div>
+      <p>O parto está previsto para <strong>${dataPartoStr}</strong>, depois de 31/12/2026 (margem de segurança pós-posse presidencial).</p>
+      <p>Hoje, o STF derrubou a exigência de carência para salário-maternidade (ADIs 2.110 e 2.111). Mas <strong>há expectativa de que essa regra seja revertida</strong> por lei nova ou nova decisão judicial depois das eleições. Se isso acontecer, voltaria a exigir 10 contribuições (ou 5 para recuperação).</p>
+      ${textoExtra}
+    </div>
+  `;
+}
+
+// ====== BLOCO 3: EXPLICAÇÃO EM LINGUAGEM NATURAL =========================
+function renderExplicacao(cenarioId, categoria, qualidade, dataParto, protetivo) {
+  const pNome = primeiroNome();
+  const catAmigavel = categoriaAmigavel(categoria);
+  let paragrafos = [];
+
+  // Parágrafo 1 — situação atual
+  if (categoria === 'especial') {
+    if (qualidade.temQualidade) {
+      paragrafos.push(`<p><strong>${pNome}</strong> é <span class="destaque">${catAmigavel}</span>. Para receber o salário-maternidade, ela precisa comprovar atividade rural nos 10 meses antes do parto — e os dados informados indicam que essa comprovação está adequada.</p>`);
+    } else {
+      paragrafos.push(`<p><strong>${pNome}</strong> é <span class="destaque">${catAmigavel}</span>. Para receber o salário-maternidade, ela precisaria comprovar atividade rural nos 10 meses antes do parto — e os dados informados ainda <strong>não atingem essa exigência</strong>.</p>`);
+    }
+  } else {
+    paragrafos.push(`<p><strong>${pNome}</strong> é <span class="destaque">${catAmigavel}</span>. Pela regra atual do STF, ela só precisa ter qualidade de segurada na data do parto — não há exigência de carência (10 contribuições) como antes.</p>`);
+
+    if (qualidade.temQualidade) {
+      if (qualidade.emPeriodoDeGraca) {
+        paragrafos.push(`<p>O último vínculo dela terminou em <strong>${formatDate(qualidade.dataFimUltimo)}</strong>. Depois disso, ela tem <span class="destaque">${qualidade.mesesGraca} meses de "período de graça"</span> (proteção automática do INSS), que vai até ${formatDate(qualidade.fimGraca)}. Como o parto está previsto para ${formatDate(dataParto)}, ela <strong>ainda está dentro dessa proteção</strong>.</p>`);
+      } else if (qualidade.contribAposPerda && qualidade.contribAposPerda >= 1) {
+        paragrafos.push(`<p>Ela já tinha perdido a qualidade de segurada anteriormente, mas <strong>recuperou</strong> ao fazer ${qualidade.contribAposPerda} nova(s) contribuição(ões). Pela regra atual do STF, isso já basta para ter direito ao salário-maternidade.</p>`);
+      } else {
+        paragrafos.push(`<p>Ela tem vínculo/contribuição ativa na data do parto, o que garante a qualidade de segurada.</p>`);
+      }
+    } else {
+      if (qualidade.fimGraca) {
+        paragrafos.push(`<p>O problema é que o "período de graça" dela (a proteção automática do INSS depois do último vínculo) terminou em <strong>${formatDate(qualidade.fimGraca)}</strong>. Como o parto está previsto para ${formatDate(dataParto)}, ela <strong>já perdeu essa proteção</strong>.</p>`);
+        paragrafos.push(`<p>Para <strong>recuperar a qualidade de segurada</strong>, basta <span class="destaque">1 contribuição em dia</span>. Com a qualidade recuperada e pela regra atual do STF (ADIs 2.110 e 2.111), ela já tem direito ao salário-maternidade.</p>`);
+      } else {
+        paragrafos.push(`<p>Os dados informados indicam que ela não tem vínculo, contribuição ou período de graça ativo na data do parto. Para recuperar a qualidade, basta <span class="destaque">1 contribuição em dia</span>.</p>`);
+      }
+    }
+  }
+
+  // Parágrafo extra para cenário duplo
+  if (['D', 'E'].includes(cenarioId) && protetivo && !protetivo.isenta) {
+    const fundamentoCarencia = protetivo.houvePerda
+      ? `precisaria reativar a contagem da carência anterior com 5 contribuições do art. 27-A e completar até 10 no total`
+      : `precisaria completar 10 contribuições no total`;
+    paragrafos.push(`<p><strong>Sobre a hipótese da regra mudar:</strong> se voltarem a exigir carência (10 contribuições da regra antiga), ${pNome} ${protetivo.faltam === 0 ? 'já cumpre essa exigência' : `${fundamentoCarencia} (faltam <span class="destaque">${protetivo.faltam} contribuição(ões)</span>)`}. ${protetivo.viavel && protetivo.faltam > 0 ? `Há <strong>${protetivo.mesesAtePartO} competências GPS pagáveis</strong> até o parto — dá pra cumprir a tempo.` : !protetivo.viavel ? `Só restam <strong>${protetivo.mesesAtePartO} competências GPS pagáveis</strong> até o parto — não dá pra blindar totalmente.` : ''}</p>`);
+  }
+
+  $('#explicacao-container').innerHTML = `
+    <div class="explicacao-box">
+      <h3>O que está acontecendo no caso</h3>
+      ${paragrafos.join('')}
+    </div>
+  `;
+}
+
+// ====== BLOCO 4: PLANO DE AÇÃO ===========================================
+function renderPlanoAcao(cenarioId, categoria, qualidade, dataParto, protetivo) {
+  const pNome = primeiroNome();
+  const iminente = partoIminente(dataParto);
+  const competenciasPagaveis = competenciasPagaveisAteParto(dataParto);
+  const totalCompetencias = competenciasPagaveis.length;
+  let secoes = [];
+
+  // ===========================================================
+  // CENÁRIO A — Cliente com qualidade, parto até 31/12/2026
+  // ===========================================================
+  if (cenarioId === 'A') {
+    let acoes = [];
+    acoes.push(`<li><strong>Fechar contrato</strong> com ${pNome} para representação no requerimento de salário-maternidade.</li>`);
+    acoes.push(`<li><strong>Reunir documentos:</strong> certidão de nascimento (quando emitida) ou termo de guarda judicial, CTPS, CNIS atualizado, comprovante de residência, RG/CPF, dados bancários para depósito.</li>`);
+
+    if (categoria === 'empregada' || categoria === 'domestica') {
+      acoes.push(`<li><strong>Particularidade CLT/doméstica:</strong> o salário-maternidade é pago pelo empregador (que depois é ressarcido pelo INSS). Acompanhar o RH para que o afastamento de 120 dias seja corretamente registrado e pago.</li>`);
+    } else if (categoria === 'individual' || categoria === 'facultativa' || categoria === 'mei') {
+      acoes.push(`<li><strong>Particularidade autônoma/MEI/facultativa:</strong> protocolar pelo Meu INSS com a procuração do escritório. O INSS pagará direto na conta da cliente.</li>`);
+    } else if (categoria === 'especial') {
+      acoes.push(`<li><strong>Particularidade rural:</strong> reunir provas materiais robustas — notas fiscais de produtor, ITR, CCIR, contratos de parceria/comodato, declaração do sindicato, fotos com data, testemunhas. Súmula 149/STJ exige início de prova material.</li>`);
+    }
+
+    acoes.push(`<li><strong>Após o nascimento</strong>, protocolar requerimento administrativo pelo escritório.</li>`);
+    acoes.push(`<li><strong>Em caso de indeferimento administrativo</strong>, ajuizar ação com pedido de tutela de urgência fundamentada nas ADIs 2.110 e 2.111 do STF e na IN PRES/INSS nº 188/2025.</li>`);
+
+    secoes.push(`
+      <div class="secao-acao">
+        <div class="secao-titulo"><span class="icone-sec">📋</span> Plano de ação — caso simples, direito reconhecido</div>
+        <ol>${acoes.join('')}</ol>
+      </div>
+    `);
+  }
+
+  // ===========================================================
+  // CENÁRIO B — Sem qualidade de segurada, parto em 2026
+  // Pela regra do STF (ADIs 2.110 e 2.111): basta 1 contribuição
+  // para recuperar qualidade e ter direito ao SM.
+  // ===========================================================
+  else if (cenarioId === 'B') {
+    const podeRecuperarQualidade = totalCompetencias >= 1;
+    const proximaCompetencia = competenciasPagaveis[0]; // primeira competência ainda pagável
+    let acoes = [];
+
+    if (podeRecuperarQualidade) {
+      acoes.push(`<li><strong>${pNome} NÃO tem qualidade de segurada hoje</strong>, mas a recuperação é simples: <strong>basta 1 contribuição em dia</strong> antes do parto. Há <strong>${totalCompetencias} competências GPS pagáveis</strong> até o parto.</li>`);
+      acoes.push(`<li><strong>Fechar contrato</strong> com a cliente para planejamento previdenciário + requerimento administrativo do salário-maternidade.</li>`);
+
+      // Destaque de URGÊNCIA — quando parto é iminente, pagamento precisa ser HOJE
+      if (iminente && proximaCompetencia) {
+        const vencimentoStr = formatDate(proximaCompetencia.vencimento);
+        acoes.push(`<li><strong style="color:#b91c1c">⚠️ PAGAMENTO URGENTE — gerar e pagar HOJE a GPS</strong> da competência <strong>${proximaCompetencia.label}</strong> (vencimento ${vencimentoStr}). Dado o parto iminente, a operação não suporta atraso: a GPS precisa estar paga e processada antes do fato gerador, sob risco de o INSS não reconhecer a qualidade recuperada no momento do requerimento. Valores e códigos no bloco financeiro abaixo.</li>`);
+      } else if (proximaCompetencia) {
+        const vencimentoStr = formatDate(proximaCompetencia.vencimento);
+        acoes.push(`<li><strong>Orientar pagamento da próxima competência GPS</strong> — competência ${proximaCompetencia.label} (vencimento até ${vencimentoStr}). Valores e códigos no bloco financeiro abaixo.</li>`);
+      }
+
+      acoes.push(`<li><strong>Após a contribuição</strong>, a cliente recupera a qualidade de segurada. Pela regra atual do STF (ADIs 2.110 e 2.111, IN 188/2025), basta isso para ter direito ao SM — não há mais exigência de carência.</li>`);
+      acoes.push(`<li><strong>Após o nascimento</strong>, protocolar requerimento administrativo pelo escritório.</li>`);
+      acoes.push(`<li><strong>Em caso de indeferimento</strong>, ajuizar ação com tutela de urgência fundamentada nas ADIs 2.110 e 2.111.</li>`);
+    } else {
+      // Sem competências pagáveis = parto hoje/já ocorreu OU outro cenário extremo
+      acoes.push(`<li><strong>${pNome} NÃO tem qualidade de segurada e NÃO há mais competências GPS pagáveis</strong> antes do parto. Cenário crítico.</li>`);
+      acoes.push(`<li><strong>Verificar a DUM (Data da Última Menstruação)</strong> no pré-natal. Se a gestação iniciou dentro do período de graça (mesmo que tenha expirado depois), aplica-se o <strong>Tema 220 da TNU</strong> (PEDILEF 0501066-93.2018.4.05.8404, j. 18/12/2020) — qualidade mantida até o parto.</li>`);
+      acoes.push(`<li><strong>Fechar contrato</strong> destacando que o caso exigirá ação judicial com fundamentação na tese da gestação no período de graça.</li>`);
+      acoes.push(`<li><strong>Estratégia processual:</strong> ajuizar ação após o nascimento, com pedido de tutela de urgência, juntando exames pré-natais (USG) que confirmem a DUM dentro do período de graça.</li>`);
+    }
+
+    secoes.push(`
+      <div class="secao-acao">
+        <div class="secao-titulo"><span class="icone-sec">⚠️</span> Plano de ação — sem qualidade de segurada</div>
+        <ol>${acoes.join('')}</ol>
+      </div>
+    `);
+  }
+
+  // ===========================================================
+  // CENÁRIO C — Com qualidade + carência protetiva CUMPRIDA + parto pós-2026
+  // ===========================================================
+  else if (cenarioId === 'C') {
+    let acoes = [];
+    acoes.push(`<li><strong>${pNome} está completamente protegida.</strong> Tem direito hoje pela regra do STF (ADIs 2.110 e 2.111) E também pela regra antiga (10 contribuições já cumpridas).</li>`);
+    acoes.push(`<li><strong>Fechar contrato</strong> com a cliente para representação no requerimento administrativo após o nascimento.</li>`);
+    acoes.push(`<li><strong>Reunir documentos</strong> aos poucos: CTPS, CNIS atualizado, comprovante de residência, RG/CPF, dados bancários. A certidão de nascimento será juntada quando o filho nascer.</li>`);
+    acoes.push(`<li><strong>Após o nascimento</strong>, protocolar requerimento administrativo pelo escritório.</li>`);
+    acoes.push(`<li><strong>Em caso de indeferimento</strong>, ajuizar ação com tutela de urgência fundamentada nas ADIs 2.110 e 2.111 do STF.</li>`);
+    secoes.push(`
+      <div class="secao-acao">
+        <div class="secao-titulo"><span class="icone-sec">🛡️</span> Plano de ação — caso totalmente protegido</div>
+        <ol>${acoes.join('')}</ol>
+      </div>
+    `);
+  }
+
+  // ===========================================================
+  // CENÁRIO D — Com qualidade + blindagem VIÁVEL + parto pós-2026
+  // ===========================================================
+  else if (cenarioId === 'D') {
+    let acoes = [];
+    const meta = 10;
+    const cumpridas = protetivo.contribCumpridas || 0;
+    const faltamProBlindar = protetivo.faltam || 0;
+    const explicacaoBlindagem = protetivo.houvePerda
+      ? `Houve perda da qualidade no histórico. Para blindar contra a regra antiga: <strong>5 contribuições do art. 27-A</strong> (reativam a contagem das anteriores) + completar até 10 no total. Faltam <strong>${faltamProBlindar} contribuição(ões)</strong>.`
+      : `Para blindar contra a regra antiga (10 contribuições — art. 25, III): a cliente já tem <strong>${cumpridas} contribuição(ões) válida(s)</strong>, faltam <strong>${faltamProBlindar}</strong> para fechar as 10. `;
+
+    acoes.push(`<li><strong>${pNome} já tem direito HOJE</strong> pela regra atual do STF (ADIs 2.110 e 2.111). Mas como o parto é depois de 31/12/2026, há risco da regra antiga voltar — convém blindar.</li>`);
+    acoes.push(`<li><strong>Fechar contrato</strong> para planejamento previdenciário completo + requerimento administrativo do benefício.</li>`);
+    acoes.push(`<li><strong>Blindagem preventiva:</strong> ${explicacaoBlindagem} Há <strong>${totalCompetencias} competências GPS pagáveis</strong> até o parto — folga suficiente. Valores e códigos no bloco financeiro abaixo.</li>`);
+    acoes.push(`<li><em>Lógica:</em> se a regra antiga voltar até o parto, ela já estará blindada (carência completa). Se não voltar, as contribuições contam para aposentadoria futura — não é desperdício.</li>`);
+    acoes.push(`<li><strong>Após o nascimento</strong>, protocolar requerimento administrativo pelo escritório.</li>`);
+    acoes.push(`<li><strong>Em caso de indeferimento</strong>, ajuizar ação com tutela de urgência fundamentada nas ADIs 2.110 e 2.111.</li>`);
+    secoes.push(`
+      <div class="secao-acao">
+        <div class="secao-titulo"><span class="icone-sec">⚡</span> Plano de ação — direito hoje + blindagem preventiva</div>
+        <ol>${acoes.join('')}</ol>
+      </div>
+    `);
+  }
+
+  // ===========================================================
+  // CENÁRIO E — Com qualidade + blindagem INVIÁVEL + parto pós-2026
+  // ===========================================================
+  else if (cenarioId === 'E') {
+    let acoes = [];
+    acoes.push(`<li><strong>${pNome} tem direito HOJE</strong> pela regra atual do STF (ADIs 2.110 e 2.111). Mas o parto é depois de 31/12/2026 e não dá tempo de blindar totalmente.</li>`);
+    acoes.push(`<li><strong>Pagar AGORA as ${totalCompetencias} competência(s) GPS ainda possíveis</strong> — quanto mais contribuições, melhor a fundamentação se a regra mudar.</li>`);
+    acoes.push(`<li><strong>Fechar contrato</strong> destacando o risco regulatório e a estratégia mista (regra atual + tese subsidiária).</li>`);
+    acoes.push(`<li><strong>Acompanhar o cenário legislativo e judicial</strong>: qualquer mudança da regra precisa respeitar a anterioridade nonagesimal (art. 195, §6º, CF/88). Há margem de manobra processual.</li>`);
+    acoes.push(`<li><strong>Após o nascimento</strong>, protocolar requerimento administrativo pelo escritório.</li>`);
+    acoes.push(`<li><strong>Estratégia processual subsidiária</strong>: se a regra mudar antes do parto, ajuizar ação com tese da irretroatividade + Tema 220 TNU (se houver compatibilidade com DUM).</li>`);
+    secoes.push(`
+      <div class="secao-acao">
+        <div class="secao-titulo"><span class="icone-sec">⚠️</span> Plano de ação — direito hoje com risco residual</div>
+        <ol>${acoes.join('')}</ol>
+      </div>
+    `);
+  }
+
+  // ===========================================================
+  // CENÁRIO F — Sem qualidade + parto pós 31/12/2026
+  // Lógica correta:
+  //   - Para SM pela regra atual STF: basta 1 contribuição (recupera qualidade)
+  //   - Para blindagem contra retorno da regra antiga:
+  //     * 5 do art. 27-A reativam a contagem da carência anterior
+  //     * Depois, completar até 10 contribuições no total
+  // ===========================================================
+  else if (cenarioId === 'F') {
+    let acoes = [];
+    const contribAnteriores = qualidade.contribTotal - (qualidade.contribAposPerda || 0);
+    const podeRecuperarQualidade = totalCompetencias >= 1;
+
+    // Calcular cenários de blindagem
+    // Para reativar carência anterior: 5 do art. 27-A
+    // Depois disso, contribuições anteriores válidas voltam a contar
+    // Total final esperado: 10 contribuições
+    const contribParaBlindagem = Math.max(5, 5 + Math.max(0, 10 - contribAnteriores - 5));
+    // Tradução: precisa 5 do art. 27-A + o que faltar para chegar a 10 considerando as anteriores
+    // Simplificando: se contribAnteriores >= 5, basta 5 do art. 27-A. Senão, precisa de mais.
+    const blindagemCompleta = contribAnteriores >= 5 ? 5 : 10 - contribAnteriores;
+    const podeBlindarTotal = totalCompetencias >= blindagemCompleta;
+
+    acoes.push(`<li><strong>${pNome} NÃO tem qualidade de segurada</strong>, mas o parto é depois de 31/12/2026 — ainda há tempo para planejamento previdenciário robusto.</li>`);
+    acoes.push(`<li><strong>Fechar contrato</strong> para planejamento previdenciário + requerimento administrativo. Captação estratégica de caso bem posicionado.</li>`);
+
+    if (podeRecuperarQualidade) {
+      acoes.push(`<li><strong>Para o direito imediato (regra atual do STF):</strong> basta <strong>1 contribuição em dia</strong> para recuperar qualidade. Pela regra das ADIs 2.110 e 2.111, isso já garante o SM.</li>`);
+    }
+
+    // Blindagem
+    if (podeBlindarTotal) {
+      if (contribAnteriores >= 5) {
+        acoes.push(`<li><strong>Para blindagem completa (caso a regra antiga volte):</strong> cumprir <strong>5 contribuições do art. 27-A</strong> da Lei 8.213/91. Isso reativa a contagem das ${contribAnteriores} contribuições anteriores e atinge 10 no total. Há ${totalCompetencias} competências GPS pagáveis — folga suficiente.</li>`);
+      } else {
+        acoes.push(`<li><strong>Para blindagem completa (caso a regra antiga volte):</strong> cumprir <strong>5 contribuições do art. 27-A</strong> (reativa as ${contribAnteriores} contribuições anteriores) + <strong>${10 - contribAnteriores - 5} contribuições adicionais</strong> para fechar as 10 da regra antiga. Total: ${blindagemCompleta} contribuições. Há ${totalCompetencias} competências GPS pagáveis.</li>`);
+      }
+    } else if (podeRecuperarQualidade) {
+      acoes.push(`<li><strong>Blindagem completa contra regra antiga:</strong> precisaria de ${blindagemCompleta} contribuições (5 do art. 27-A + ${blindagemCompleta - 5} para atingir 10 no total), mas só há ${totalCompetencias} competências GPS pagáveis. Pagar o máximo possível.</li>`);
+    }
+
+    if (contribAnteriores > 0) {
+      acoes.push(`<li><em>Detalhe importante:</em> a cliente já tem ${contribAnteriores} contribuição(ões) anterior(es) válida(s). Essas contribuições <strong>NÃO contam</strong> automaticamente — só voltam a valer após cumpridas as 5 do art. 27-A. É por isso que o art. 27-A "revalida" a contagem anterior.</li>`);
+    }
+
+    acoes.push(`<li><strong>Verificar DUM no pré-natal</strong>: se a gestação iniciou no período de graça, aplica-se o Tema 220 da TNU como reforço argumentativo.</li>`);
+    acoes.push(`<li><strong>Após o nascimento</strong>, protocolar requerimento administrativo pelo escritório.</li>`);
+    acoes.push(`<li><strong>Em caso de indeferimento</strong>, ajuizar ação com tutela de urgência, fundamentada nas ADIs 2.110 e 2.111 (regra principal) e Tema 220 TNU (subsidiária).</li>`);
+
+    secoes.push(`
+      <div class="secao-acao">
+        <div class="secao-titulo"><span class="icone-sec">📅</span> Plano de ação — sem qualidade + tempo de planejar</div>
+        <ol>${acoes.join('')}</ol>
+      </div>
+    `);
+  }
+
+  // ===========================================================
+  // SEÇÃO ADICIONAL: TESE DA GESTAÇÃO NO PERÍODO DE GRAÇA
+  // (quando aplicável, em qualquer cenário sem qualidade)
+  // ===========================================================
+  if (!qualidade.temQualidade && categoria !== 'especial' && qualidade.fimGraca) {
+    const gestacaoIniciada = addMeses(dataParto, -9);
+    if (gestacaoIniciada <= qualidade.fimGraca) {
+      secoes.push(`
+        <div class="secao-acao">
+          <div class="secao-titulo"><span class="icone-sec">⚖️</span> Tese jurídica adicional aplicável</div>
+          <ol>
+            <li><strong>Tese da gestação iniciada no período de graça</strong> — Tema 220 da TNU (PEDILEF 0501066-93.2018.4.05.8404, j. 18/12/2020): se a gestação iniciou dentro do período de graça, a qualidade é mantida até o parto, mesmo que o período de graça tenha expirado antes.</li>
+            <li><strong>Confirmar a DUM</strong> nos exames de pré-natal (USG transvaginal precoce confirma a data com precisão).</li>
+            <li><strong>Esta tese pode garantir o direito mesmo sem as 5 contribuições do art. 27-A</strong> — vale apostar nela como pedido principal em ação judicial, com o art. 27-A como pedido subsidiário.</li>
+          </ol>
+        </div>
+      `);
+    }
+  }
+
+  // ===========================================================
+  // SEÇÃO ADICIONAL: COMPLEMENTAÇÃO DE COMPETÊNCIAS ABAIXO DO MÍNIMO
+  // ===========================================================
+  const vinculos = coletarVinculos();
+  const abaixoMinimo = detectarCompetenciasAbaixoMinimo(vinculos, categoria);
+  if (abaixoMinimo.length > 0) {
+    secoes.push(`
+      <div class="secao-acao">
+        <div class="secao-titulo"><span class="icone-sec">🔍</span> Oportunidade identificada no histórico contributivo</div>
+        <ol>
+          <li>Identifiquei <strong>${abaixoMinimo.length} vínculo(s) curto(s)</strong> que podem ter gerado competências contribuídas abaixo do salário mínimo: ${abaixoMinimo.slice(0, 3).map(c => `${c.empregador} (${formatDate(c.inicio)} → ${formatDate(c.fim)})`).join('; ')}${abaixoMinimo.length > 3 ? '; ...' : ''}.</li>
+          <li><strong>Verificar no CNIS</strong> se essas competências estão validadas (sinalizadas com PREC-MENOR-MIN). Se não estiverem, podem ser complementadas pagando a diferença até o piso (fórmula: <em>(SM − valor recolhido) × alíquota</em>) — art. 19-E do Decreto 3.048/99 + art. 195 §14 CF.</li>
+          <li><strong>Estratégia:</strong> a complementação é mais barata que uma nova contribuição completa e VALIDA competências que hoje não contam para nada. Em casos limítrofes, pode ser o que viabiliza o benefício. Considerar como serviço acessório no contrato.</li>
+        </ol>
+      </div>
+    `);
+  }
+
+  $('#plano-acao-container').innerHTML = `
+    <div class="plano-acao">
+      <h3>📌 Plano de ação operacional — caso para a equipe</h3>
+      ${secoes.join('')}
+    </div>
+  `;
+}
+
+// ====== BLOCO FINANCEIRO ===================================================
+function renderFinanceiro(cenarioId, categoria, fatoGerador, qualidade, protetivo, dataParto) {
+  // Não exibir bloco financeiro se a cliente claramente não tem direito (B e F sem plano)
+  // mas SEMPRE mostrar quanto ela vai receber, para fortalecer o argumento de planejamento
+  const fin = calcularResultadoFinanceiro(categoria, fatoGerador);
+  const pNome = primeiroNome();
+  let blocos = [];
+
+  // ---- BLOCO 1: QUANTO VAI RECEBER ----
+  let linhasRecebimento = [];
+  linhasRecebimento.push(`
+    <div class="calc-linha positivo">
+      <span class="descricao">Salário-maternidade (${fin.dias} dias)
+        <span class="formula">${formatBRL(fin.valorMensal)}/mês × ${fin.mesesSM.toFixed(2).replace('.', ',')} meses</span>
+      </span>
+      <span class="valor">${formatBRL(fin.valorBrutoSM)}</span>
+    </div>
+  `);
+  linhasRecebimento.push(`
+    <div class="calc-linha positivo">
+      <span class="descricao">13º proporcional
+        <span class="formula">(${formatBRL(fin.valorMensal)} ÷ 12) × ${fin.mesesSM.toFixed(2).replace('.', ',')} meses</span>
+      </span>
+      <span class="valor">${formatBRL(fin.decimoTerceiro)}</span>
+    </div>
+  `);
+  linhasRecebimento.push(`
+    <div class="calc-linha">
+      <span class="descricao"><strong>Total bruto</strong></span>
+      <span class="valor">${formatBRL(fin.totalBruto)}</span>
+    </div>
+  `);
+
+  // Descontos
+  if (fin.descontoINSS > 0) {
+    linhasRecebimento.push(`
+      <div class="calc-linha negativo">
+        <span class="descricao">(−) Desconto INSS sobre o SM
+          <span class="formula">${fin.aliquotaInfo}</span>
+        </span>
+        <span class="valor">−${formatBRL(fin.descontoINSS)}</span>
+      </div>
+    `);
+  }
+
+  linhasRecebimento.push(`
+    <div class="calc-linha total">
+      <span class="descricao">💰 ${pNome} recebe líquido</span>
+      <span class="valor verde">${formatBRL(fin.totalLiquido)}</span>
+    </div>
+  `);
+
+  // Nota de isencao ou de desconto aplicável conforme a categoria
+  let notaExtra = '';
+  if (!fin.temDesconto) {
+    // Apenas segurada especial rural
+    notaExtra = `
+      <div class="nota-isencao">
+        <strong>✓ Sem desconto na parcela:</strong> ${fin.motivoIsencaoDesconto}
+      </div>
+    `;
+  } else if (fin.tipoDesconto === 'fixa') {
+    // Individual, facultativa, MEI
+    notaExtra = `
+      <div class="nota-isencao" style="background:var(--amber-soft);border-color:var(--amber);color:var(--text)">
+        <strong>⚠ Desconto INSS aplicado:</strong> O próprio INSS retém a contribuição previdenciária da segurada direto nas parcelas do salário-maternidade — <strong>${fin.aliquotaInfo}</strong>. ${pNome} recebe o valor já líquido na conta. <strong>Importante:</strong> durante o período do SM, ela NÃO deve continuar recolhendo a contribuição mensal por GPS — o INSS já está descontando do benefício (orientação oficial do INSS, gov.br).
+      </div>
+    `;
+  } else {
+    // CLT, doméstica, avulsa
+    notaExtra = `
+      <div class="nota-isencao" style="background:var(--amber-soft);border-color:var(--amber);color:var(--text)">
+        <strong>⚠ Desconto previdenciário:</strong> Como a cliente é ${categoriaAmigavel(categoria)}, a contribuição previdenciária da segurada é descontada sobre cada parcela do salário-maternidade pelo empregador, conforme tabela progressiva 2026 (7,5% a 14%) — art. 100-C do Decreto 3.048/99 e art. 454 da Portaria DIRBEN/INSS 991/2022. O Tema 1.274/STF ainda discute essa retenção, mas hoje ela é feita administrativamente.
+      </div>
+    `;
+  }
+
+  // Nota sobre IRRF
+  let notaIRRF = `
+    <div class="nota-isencao">
+      <strong>✓ Sem desconto de Imposto de Renda:</strong> com o valor de ${formatBRL(fin.valorMensal)}, a cliente está na faixa de isenção de IRRF (até ${formatBRL(5000)} mensais — Lei 15.270/25, vigente desde 1º/01/2026).
+    </div>
+  `;
+
+  blocos.push(`
+    <div class="financeiro-bloco recebimento">
+      <h3>💰 Quanto ${pNome} vai receber</h3>
+      ${linhasRecebimento.join('')}
+      ${notaExtra}
+      ${notaIRRF}
+    </div>
+  `);
+
+  // ---- BLOCO 2: QUANTO VAI INVESTIR ----
+  // Aplica nos cenários:
+  //   D/E: contribuir para BLINDAGEM contra mudança de regra (até 10 no total)
+  //   B: contribuir para RECUPERAR qualidade (1 contribuição basta pela regra STF)
+  //   F: contribuir para qualidade (1) + blindagem (até 10 considerando anteriores)
+  let contribFaltam = 0;
+  let motivoInvestimento = '';
+  if (['D', 'E'].includes(cenarioId) && protetivo && !protetivo.isenta && protetivo.faltam > 0) {
+    contribFaltam = protetivo.faltam;
+    motivoInvestimento = `Para blindar contra eventual retorno da regra antiga (10 contribuições no total — art. 25, III), ${pNome} precisa cumprir mais <strong>${contribFaltam} contribuição(ões)</strong> ao INSS antes do parto. Pela regra atual do STF, ela já tem direito ao SM, mas a blindagem protege contra mudança regulatória. Veja as opções:`;
+  } else if (cenarioId === 'B') {
+    // Cenário B: parto em 2026, basta 1 contribuição para qualidade
+    contribFaltam = 1;
+    motivoInvestimento = `Para recuperar a qualidade de segurada, ${pNome} precisa fazer <strong>1 contribuição</strong> em dia. Pela regra atual do STF (ADIs 2.110 e 2.111), com a qualidade recuperada ela já tem direito ao salário-maternidade — sem necessidade de carência. Veja as opções:`;
+  } else if (cenarioId === 'F') {
+    // Cenário F: parto pós-2026. Mostrar a contribuição para recuperar qualidade (1)
+    // Se houver blindagem viável, mostrar o valor da blindagem em vez disso
+    const contribAnteriores = qualidade.contribTotal - (qualidade.contribAposPerda || 0);
+    const blindagemCompleta = contribAnteriores >= 5 ? 5 : 10 - contribAnteriores;
+    const podeBlindarTotal = competenciasPagaveisAteParto(dataParto).length >= blindagemCompleta;
+    if (podeBlindarTotal) {
+      contribFaltam = blindagemCompleta;
+      motivoInvestimento = `Para blindagem completa (recuperar qualidade + reativar carência anterior + atingir 10 contribuições no total), ${pNome} precisa fazer <strong>${blindagemCompleta} contribuição(ões)</strong>. A primeira já recupera a qualidade pela regra atual do STF. Veja as opções:`;
+    } else {
+      contribFaltam = 1;
+      motivoInvestimento = `Para recuperar a qualidade de segurada, ${pNome} precisa fazer pelo menos <strong>1 contribuição</strong> em dia (regra atual do STF). Para blindagem total contra retorno da regra antiga, precisaria de ${blindagemCompleta} contribuições, mas o tempo é insuficiente. Veja as opções:`;
+    }
+  }
+
+  if (contribFaltam > 0) {
+    const planos = obterPlanosContribuicao(categoria);
+    if (planos.length > 0) {
+      const planoCards = planos.map(p => {
+        const totalInvestimento = p.valor * contribFaltam;
+        const badge = p.recomendado ? '<span class="badge-recomendado">Recomendado</span>' :
+                      p.atencao ? '<span class="badge-atencao">Atenção</span>' : '';
+        const classes = ['plano-card'];
+        if (p.recomendado) classes.push('recomendado');
+        if (p.atencao) classes.push('atencao');
+        const notaTrimestral = p.codigoTrimestral
+          ? `<div class="plano-codigo" style="margin-top:2px;opacity:0.85">Trimestral: código ${p.codigoTrimestral} · ${formatBRL(p.valor * 3)}/trimestre</div>`
+          : '';
+        return `
+          <div class="${classes.join(' ')}">
+            <div class="plano-titulo">
+              <span>${p.nome}</span>
+              ${badge}
+            </div>
+            <div class="plano-valor">
+              ${formatBRL(p.valor)}/mês
+              <span class="total-investimento">× ${contribFaltam} meses = ${formatBRL(totalInvestimento)} total</span>
+            </div>
+            <div class="plano-codigo">Código GPS mensal: ${p.codigoGPS}</div>
+            ${notaTrimestral}
+            <div class="plano-observacao">${p.observacao}</div>
+          </div>
+        `;
+      }).join('');
+
+      blocos.push(`
+        <div class="financeiro-bloco investimento">
+          <h3>💸 Quanto ${pNome} precisa investir</h3>
+          <p style="font-size:13px;color:var(--gray-4);margin-bottom:6px;line-height:1.5">${motivoInvestimento}</p>
+          <div class="planos-contribuicao">${planoCards}</div>
+        </div>
+      `);
+    }
+  }
+
+  // ---- BLOCO 3: SALDO LÍQUIDO DA OPERAÇÃO ----
+  if (contribFaltam > 0) {
+    const planos = obterPlanosContribuicao(categoria);
+    const planoRecomendado = planos.find(p => p.recomendado) || planos[0];
+    if (planoRecomendado) {
+      const totalInvestimento = planoRecomendado.valor * contribFaltam;
+      const saldoFinal = fin.totalLiquido - totalInvestimento;
+      const retornoMultiplo = (fin.totalLiquido / totalInvestimento).toFixed(1).replace('.', ',');
+
+      blocos.push(`
+        <div class="financeiro-bloco saldo">
+          <h3>📊 Resultado líquido da operação</h3>
+          <div class="calc-linha positivo">
+            <span class="descricao">Salário-maternidade líquido a receber</span>
+            <span class="valor">+${formatBRL(fin.totalLiquido)}</span>
+          </div>
+          <div class="calc-linha negativo">
+            <span class="descricao">Investimento em contribuições <span class="formula">(plano recomendado)</span></span>
+            <span class="valor">−${formatBRL(totalInvestimento)}</span>
+          </div>
+          <div class="saldo-final">
+            <div class="label-saldo">Saldo líquido para ${pNome}</div>
+            <div class="valor-saldo">${formatBRL(saldoFinal)}</div>
+            <div class="descricao-saldo">Investindo ${formatBRL(totalInvestimento)}, ela recebe ${formatBRL(fin.totalLiquido)} — retorno de <strong>${retornoMultiplo}×</strong> sobre o investimento</div>
+          </div>
+        </div>
+      `);
+    }
+  }
+
+  $('#financeiro-container').innerHTML = blocos.join('');
+}
+
+// ====== BLOCO 5: DETALHES TÉCNICOS (RECOLHIDOS) ============================
+function renderDetalhesTecnicos(categoria, qualidade, dataParto, contribTotal, duplo, protetivo, cenarioId) {
+  // Dados quantitativos
+  const dadosTecnicos = [];
+  dadosTecnicos.push(`<div class="data-row"><span class="label">Categoria</span><span class="value">${categoriaAmigavel(categoria)}</span></div>`);
+  dadosTecnicos.push(`<div class="data-row"><span class="label">Data do fato gerador</span><span class="value">${formatDate(dataParto)}</span></div>`);
+  dadosTecnicos.push(`<div class="data-row"><span class="label">Qualidade de segurada</span><span class="value ${qualidade.temQualidade ? 'ok' : 'no'}">${qualidade.temQualidade ? 'PRESENTE' : 'AUSENTE'}</span></div>`);
+
+  if (categoria !== 'especial') {
+    dadosTecnicos.push(`<div class="data-row"><span class="label">Contribuições totais identificadas</span><span class="value">${contribTotal}</span></div>`);
+    if (qualidade.fimGraca) {
+      dadosTecnicos.push(`<div class="data-row"><span class="label">Período de graça aplicável</span><span class="value">${qualidade.mesesGraca} meses (até ${formatDate(qualidade.fimGraca)})</span></div>`);
+    }
+    if (qualidade.contribAposPerda !== undefined) {
+      const okQualidade = qualidade.contribAposPerda >= 1;
+      const okCarenciaRevalidada = qualidade.contribAposPerda >= 5;
+      dadosTecnicos.push(`<div class="data-row"><span class="label">Contribuições após perda</span><span class="value ${okQualidade ? 'ok' : 'no'}">${qualidade.contribAposPerda} (${okQualidade ? 'qualidade ✓' : 'precisa 1'} · ${okCarenciaRevalidada ? 'carência revalidada ✓' : `${5 - qualidade.contribAposPerda} para revalidar carência`})</span></div>`);
+    }
+  }
+
+  // Cenário protetivo
+  let blocoProtetivo = '';
+  if (duplo && protetivo && !protetivo.isenta) {
+    blocoProtetivo = `
+      <div class="bloco-tecnico">
+        <h5>Cenário protetivo — Hipótese de retorno da carência</h5>
+        <div class="data-row"><span class="label">Carência exigida (regra antiga)</span><span class="value">${protetivo.carenciaNecessaria} contribuição(ões)</span></div>
+        <div class="data-row"><span class="label">Contribuições cumpridas</span><span class="value">${protetivo.contribCumpridas}</span></div>
+        <div class="data-row"><span class="label">Contribuições faltantes</span><span class="value ${protetivo.faltam === 0 ? 'ok' : 'warn'}">${protetivo.faltam}</span></div>
+        <div class="data-row"><span class="label">Meses até o parto</span><span class="value">${protetivo.mesesAtePartO}</span></div>
+        <div class="data-row"><span class="label">Viabilidade de blindagem</span><span class="value ${protetivo.viavel ? 'ok' : 'no'}">${protetivo.viavel ? 'POSSÍVEL' : 'INVIÁVEL'}</span></div>
+        <p style="margin-top:8px;font-style:italic">${protetivo.fundamento}</p>
+      </div>
+    `;
+  }
+
+  // Fundamentação normativa
+  const fundamentos = [
+    'CF/88, art. 7º, XVIII e art. 201, II — direito ao salário-maternidade.',
+    'Lei 8.213/91, arts. 71 a 73 — disciplina geral do benefício.',
+    'STF, ADIs 2.110 e 2.111, Plenário, j. 21/03/2024, acórdão publicado em 24/05/2024 — declarada a inconstitucionalidade do art. 25, III da Lei 8.213/91 (exigência de carência).',
+    'IN PRES/INSS nº 188/2025 — regulamentação administrativa da isenção de carência (aplicação a requerimentos a partir de 05/04/2024).',
+    'Art. 15 da Lei 8.213/91 — período de graça e suas prorrogações (§ 1º e § 2º).',
+    'Art. 27-A da Lei 8.213/91 (redação da Lei 13.846/2019) — após perda da qualidade de segurada, exige 5 contribuições para reativar a contagem da carência anterior. A qualidade em si é recuperada com 1 contribuição.'
+  ];
+  if (categoria === 'especial') {
+    fundamentos.push('Art. 39, parágrafo único, da Lei 8.213/91 — segurada especial: 10 meses de atividade rural anteriores ao parto.');
+    fundamentos.push('Súmula 54/TNU; Súmula 149/STJ — exigência de início de prova material.');
+  }
+  if (categoria === 'desempregada' || $('#desemprego_involuntario').value === 'sim') {
+    fundamentos.push('Súmula 27/TNU; STJ, REsp 1.338.295/RS — desemprego involuntário comprovado por qualquer meio idôneo.');
+  }
+  if (!qualidade.temQualidade && categoria !== 'especial' && qualidade.fimGraca) {
+    const gestacaoIniciada = addMeses(dataParto, -9);
+    if (gestacaoIniciada <= qualidade.fimGraca) {
+      fundamentos.push('TNU, Tema 220 (PEDILEF 0501066-93.2018.4.05.8404, j. 18/12/2020) — gestação iniciada no período de graça mantém qualidade de segurada até o parto.');
+    }
+  }
+  if (duplo) {
+    fundamentos.push('Cenário protetivo: anterioridade nonagesimal (art. 195, § 6º, CF/88) protege contra mudanças imediatas.');
+  }
+
+  $('#detalhes-tecnicos-container').innerHTML = `
+    <details class="detalhes-tecnicos">
+      <summary>Mostrar fundamentação jurídica e dados técnicos</summary>
+      <div class="detalhes-tecnicos-body">
+        <div class="bloco-tecnico">
+          <h5>Dados quantitativos da análise</h5>
+          ${dadosTecnicos.join('')}
+        </div>
+        ${blocoProtetivo}
+        <div class="bloco-tecnico">
+          <h5>Fundamentos normativos e jurisprudenciais aplicados</h5>
+          <ul>${fundamentos.map(f => `<li>${f}</li>`).join('')}</ul>
+        </div>
+      </div>
+    </details>
+  `;
+}
+
+// ============================================================================
+// GERAÇÃO DE PDF — v3.3
+// Dois PDFs distintos:
+//   1. PDF Interno: documento completo para a pasta da cliente (uso interno)
+//   2. PDF Cliente: orientação leiga, 1 página, sem informações sensíveis
+// Biblioteca: html2pdf.js (carregada no head)
+// ============================================================================
+
+function slugificar(texto) {
+  return (texto || 'Cliente')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 50);
+}
+
+function dataParaArquivo() {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}`;
+}
+
+function cabecalhoPDF() {
+  return `
+    <table style="width:100%;border-bottom:3px solid #C9A84C;padding-bottom:14px;margin-bottom:18px;border-collapse:collapse;">
+      <tr>
+        <td style="vertical-align:middle;">
+          <div style="font-size:18pt;font-weight:bold;color:#0D2340;letter-spacing:0.5px;">ARRAIS ADVOGADOS</div>
+          <div style="font-size:9pt;color:#4a4a52;margin-top:2px;">Sociedade de Advogados · OAB/MG 19.391</div>
+        </td>
+        <td style="vertical-align:middle;text-align:right;font-size:9pt;color:#4a4a52;">
+          <div>Análise de Salário-Maternidade</div>
+          <div>Gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+        </td>
+      </tr>
+    </table>
+  `;
+}
+
+function rodapePDF(tipo) {
+  const texto = tipo === 'interno'
+    ? 'DOCUMENTO DE USO INTERNO — não substitui análise jurídica individualizada. Resultado preliminar baseado nos dados informados.'
+    : 'ARRAIS ADVOGADOS · OAB/MG 19.391 · Direito Previdenciário e Trabalhista';
+  return `
+    <div style="border-top:2px solid #C9A84C;padding-top:10px;margin-top:18px;text-align:center;font-size:8pt;color:#4a4a52;">
+      ${texto}
+    </div>
+  `;
+}
+
+function gerarPDFInterno() {
+  const a = window.__analiseAtual;
+  if (!a) { alert('Faça uma análise primeiro.'); return; }
+
+  const btn = $('#btn_pdf_interno');
+  btn.disabled = true;
+  btn.textContent = '⏳ Gerando PDF...';
+
+  // Capturar o conteúdo do resultado (já renderizado na tela)
+  const veredicto = $('#resultado-final-container').innerHTML;
+  const atencao = $('#atencao-container').innerHTML;
+  const explicacao = $('#explicacao-container').innerHTML;
+  const planoAcao = $('#plano-acao-container').innerHTML;
+  const financeiro = $('#financeiro-container').innerHTML;
+  // Detalhes técnicos: extrair conteúdo de dentro do <details>, sempre expandido
+  const detalhesRaw = $('#detalhes-tecnicos-container').innerHTML;
+  const detalhes = detalhesRaw.replace(/<details[^>]*>/g, '<div>').replace(/<\/details>/g, '</div>').replace(/<summary[^>]*>.*?<\/summary>/g, '');
+
+  // Bloco identificador do caso
+  const dataPartoBR = a.dataParto.toLocaleDateString('pt-BR');
+  const categoriaLabel = {
+    'empregada': 'Empregada CLT', 'domestica': 'Doméstica', 'avulsa': 'Avulsa',
+    'individual': 'Contribuinte Individual', 'facultativa': 'Facultativa',
+    'mei': 'MEI', 'especial': 'Segurada Especial', 'desempregada': 'Desempregada (período de graça)'
+  }[a.categoria] || a.categoria;
+
+  const cabecalhoCaso = `
+    <div style="background:#f7f7f8;border-left:4px solid #0D2340;padding:12px 16px;margin-bottom:16px;border-radius:4px;">
+      <div style="font-size:13pt;font-weight:bold;color:#0D2340;margin-bottom:8px;">DADOS DO CASO</div>
+      <table style="width:100%;font-size:10pt;border-collapse:collapse;">
+        <tr><td style="padding:3px 0;color:#4a4a52;width:40%;">Cliente:</td><td style="padding:3px 0;font-weight:bold;">${a.nomeCliente}</td></tr>
+        <tr><td style="padding:3px 0;color:#4a4a52;">Categoria:</td><td style="padding:3px 0;">${categoriaLabel}</td></tr>
+        <tr><td style="padding:3px 0;color:#4a4a52;">Fato gerador:</td><td style="padding:3px 0;">${a.fatoGerador === 'parto' ? 'Parto' : 'Adoção'} previsto para ${dataPartoBR}</td></tr>
+        <tr><td style="padding:3px 0;color:#4a4a52;">Vínculos analisados:</td><td style="padding:3px 0;">${a.vinculos.length}</td></tr>
+      </table>
+    </div>
+  `;
+
+  // Estilo específico para o PDF (sobrescrever cores escuras de fundo para impressão)
+  const cssPDF = `
+    <style>
+      body { font-family: Arial, sans-serif; color: #1a1a1f; font-size: 10pt; line-height: 1.5; }
+      .resultado-final { padding:14px 16px;border-radius:6px;margin-bottom:14px; }
+      .resultado-final.verde { background:#e8f5eb;border-left:4px solid #2d7a3e; }
+      .resultado-final.amarelo { background:#fdf5e0;border-left:4px solid #b8860b; }
+      .resultado-final.vermelho { background:#fbeaea;border-left:4px solid #a83232; }
+      .resultado-icone { font-size:18pt;display:block;margin-bottom:6px; }
+      .resultado-titulo { font-size:13pt;font-weight:bold;color:#0D2340;margin-bottom:6px; }
+      .resultado-subtitulo { font-size:10pt;color:#1a1a1f; }
+      .plano-acao { margin:14px 0; }
+      .plano-acao h3 { color:#0D2340;font-size:13pt;border-bottom:2px solid #C9A84C;padding-bottom:6px;margin-bottom:12px; }
+      .secao-acao { background:#f7f7f8;border-left:3px solid #C9A84C;padding:12px 14px;margin-bottom:10px;border-radius:4px; }
+      .secao-titulo { font-weight:bold;color:#0D2340;margin-bottom:8px;font-size:11pt; }
+      .icone-sec { margin-right:6px; }
+      ol, ul { padding-left: 22px; }
+      li { margin-bottom: 6px; }
+      .destaque { background:#fdf5e0;padding:1px 4px;border-radius:3px;font-weight:bold; }
+      .financeiro-bloco { background:#f7f7f8;padding:12px;border-radius:4px;margin-bottom:10px; }
+      .financeiro-titulo { font-size:12pt;font-weight:bold;color:#0D2340;margin-bottom:8px; }
+      .calc-linha { display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dotted #d0d0d6;font-size:9.5pt; }
+      .calc-linha.positivo .valor { color:#2d7a3e;font-weight:bold; }
+      .calc-linha.negativo .valor { color:#a83232; }
+      .calc-linha.total { font-weight:bold;border-top:2px solid #0D2340;border-bottom:none;padding-top:6px;margin-top:4px;font-size:10.5pt; }
+      .formula { font-size:8pt;color:#9b9ba3;display:block;margin-top:2px; }
+      .plano-card { background:white;border:1px solid #d0d0d6;border-radius:4px;padding:10px;margin-bottom:8px; }
+      .plano-card.recomendado { border-left:3px solid #2d7a3e; }
+      .plano-titulo { font-weight:bold;color:#0D2340;margin-bottom:4px; }
+      .plano-valor { font-size:12pt;font-weight:bold;color:#0D2340; }
+      .plano-codigo { font-size:8.5pt;color:#4a4a52;margin-top:3px; }
+      .plano-observacao { font-size:8.5pt;color:#4a4a52;margin-top:4px;font-style:italic; }
+      .data-row { display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dotted #e5e5ea;font-size:9pt; }
+      .label { color:#4a4a52; }
+      .value { font-weight:bold; }
+      .value.ok { color:#2d7a3e; }
+      .value.no { color:#a83232; }
+      .atencao-pos-eleicao { background:#fdf5e0;border-left:4px solid #b8860b;padding:12px 14px;border-radius:4px;margin-bottom:14px;font-size:9.5pt; }
+      .aviso-urgencia { background:#a83232;color:white;padding:12px 14px;border-radius:4px;margin-bottom:14px; }
+      .aviso-urgencia-titulo { font-weight:bold;font-size:11pt; }
+      .aviso-urgencia-texto { font-size:9.5pt;margin-top:4px; }
+      p { margin: 6px 0; }
+      strong { color: #0D2340; }
+      .total-investimento { font-size:9pt;color:#4a4a52;font-weight:normal;display:block;margin-top:3px; }
+      .badge { background:#2d7a3e;color:white;padding:1px 6px;border-radius:3px;font-size:8pt;font-weight:normal; }
+      .secao-resultado h3 { color:#0D2340;font-size:13pt;border-bottom:2px solid #C9A84C;padding-bottom:6px;margin-top:14px;margin-bottom:10px; }
+      .explicacao { font-size:10pt; }
+    </style>
+  `;
+
+  const html = `
+    <div style="padding:0;font-family:Arial,sans-serif;">
+      ${cabecalhoPDF()}
+      ${cabecalhoCaso}
+      ${veredicto}
+      ${atencao}
+      <h3 style="color:#0D2340;border-bottom:2px solid #C9A84C;padding-bottom:6px;font-size:13pt;">SITUAÇÃO DO CASO</h3>
+      ${explicacao}
+      ${planoAcao}
+      <h3 style="color:#0D2340;border-bottom:2px solid #C9A84C;padding-bottom:6px;font-size:13pt;page-break-before:auto;">ANÁLISE FINANCEIRA</h3>
+      ${financeiro}
+      <h3 style="color:#0D2340;border-bottom:2px solid #C9A84C;padding-bottom:6px;font-size:13pt;">DETALHES TÉCNICOS E FUNDAMENTAÇÃO JURÍDICA</h3>
+      ${detalhes}
+      ${rodapePDF('interno')}
+    </div>
+  `;
+
+  // Criar overlay de loading que cobre a tela durante a geração
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(13,35,64,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;color:white;font-family:Arial;font-size:16pt;';
+  overlay.innerHTML = '<div style="text-align:center;"><div style="font-size:48pt;margin-bottom:12px;">📄</div><div>Gerando PDF Interno...</div><div style="font-size:11pt;margin-top:8px;opacity:0.7;">Aguarde alguns segundos</div></div>';
+  document.body.appendChild(overlay);
+
+  const container = document.createElement('div');
+  container.innerHTML = cssPDF + html;
+  container.style.cssText = 'width:180mm;background:white;padding:0;box-sizing:border-box;position:absolute;top:0;left:0;z-index:99998;';
+  document.body.appendChild(container);
+
+  const opt = {
+    margin: [15, 15, 15, 15],
+    filename: `Analise-SM-${slugificar(a.nomeCliente)}-${dataParaArquivo()}.pdf`,
+    image: { type: 'jpeg', quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true, letterRendering: true, logging: false, backgroundColor: '#ffffff' },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak: { mode: ['avoid-all', 'css', 'legacy'], avoid: ['.secao-acao', '.financeiro-bloco', '.plano-card'] }
+  };
+
+  html2pdf().set(opt).from(container).save().then(() => {
+    document.body.removeChild(container);
+    document.body.removeChild(overlay);
+    btn.disabled = false;
+    btn.innerHTML = '📄 PDF Interno';
+  }).catch(err => {
+    console.error('Erro ao gerar PDF:', err);
+    alert('Erro ao gerar PDF: ' + err.message);
+    if (container.parentNode) document.body.removeChild(container);
+    if (overlay.parentNode) document.body.removeChild(overlay);
+    btn.disabled = false;
+    btn.innerHTML = '📄 PDF Interno';
+  });
+}
+
+function gerarPDFCliente() {
+  const a = window.__analiseAtual;
+  if (!a) { alert('Faça uma análise primeiro.'); return; }
+
+  const btn = $('#btn_pdf_cliente');
+  btn.disabled = true;
+  btn.textContent = '⏳ Gerando PDF...';
+
+  const pNome = a.nomeCliente.split(' ')[0];
+  const dataPartoBR = a.dataParto.toLocaleDateString('pt-BR');
+
+  // Determinar mensagem da cliente conforme cenário (sem juridiquês, sem estratégia)
+  let mensagemSituacao = '';
+  let proximosPassos = [];
+  let documentos = [];
+
+  // Replicar a lógica de classificação de cenários (versão simplificada)
+  const q = a.qualidade;
+  const duplo = a.duplo;
+  let cenarioId;
+  if (!q.temQualidade) cenarioId = duplo ? 'F' : 'B';
+  else if (a.protetivo && a.protetivo.isenta) cenarioId = 'A';
+  else if (!duplo) cenarioId = 'A';
+  else if (a.protetivo && a.protetivo.faltam === 0) cenarioId = 'C';
+  else if (a.protetivo && a.protetivo.viavel) cenarioId = 'D';
+  else cenarioId = 'E';
+
+  const isAdocao = a.fatoGerador === 'adocao';
+  const fatoLabel = isAdocao ? 'da adoção' : 'do nascimento do seu bebê';
+  const dataLabel = isAdocao ? 'a data prevista da guarda' : 'a data prevista do parto';
+
+  if (cenarioId === 'A' || cenarioId === 'C') {
+    mensagemSituacao = `Você tem direito ao salário-maternidade. Pela análise dos seus dados e ${dataLabel} (${dataPartoBR}), preenche todos os requisitos exigidos pela lei para receber o benefício.`;
+    proximosPassos = [
+      'Aguardar o nascimento do seu bebê (ou a guarda judicial, no caso de adoção).',
+      'Nos avisar assim que possível para iniciarmos o pedido junto ao INSS.',
+      'Nossa equipe cuidará de toda a parte burocrática para você.',
+      'O valor do benefício será depositado diretamente na sua conta.'
+    ];
+  } else if (cenarioId === 'B') {
+    mensagemSituacao = `Sua situação previdenciária precisa de uma pequena regularização antes de pedirmos o benefício. A boa notícia é que isso é simples e rápido de resolver, e você pode garantir seu direito ao salário-maternidade.`;
+    proximosPassos = [
+      'Realizar a contribuição ao INSS que orientamos no atendimento (nossa equipe te explicou os valores e como pagar).',
+      'Após o pagamento, sua qualidade de segurada será regularizada.',
+      'Nos avisar quando o bebê nascer para iniciarmos o pedido do benefício.',
+      'Nossa equipe cuidará de toda a parte burocrática junto ao INSS.'
+    ];
+  } else if (cenarioId === 'D' || cenarioId === 'E') {
+    mensagemSituacao = `Você tem direito ao salário-maternidade pelas regras atuais. Como ${dataLabel} (${dataPartoBR}) ainda está distante, vamos trabalhar com um planejamento preventivo para garantir que seu direito esteja totalmente protegido até lá.`;
+    proximosPassos = [
+      'Seguir o plano de contribuições mensais que nossa equipe te explicou no atendimento.',
+      'Manter o pagamento em dia até o nascimento do seu bebê.',
+      'Nos avisar quando o bebê nascer para iniciarmos o pedido do benefício.',
+      'Nossa equipe acompanhará todo o processo junto ao INSS.'
+    ];
+  } else if (cenarioId === 'F') {
+    mensagemSituacao = `Sua situação previdenciária precisa de uma regularização. A boa notícia é que ainda temos tempo até ${dataLabel} (${dataPartoBR}), e com um planejamento simples você pode garantir o seu direito ao salário-maternidade.`;
+    proximosPassos = [
+      'Seguir o plano de contribuições que nossa equipe te explicou no atendimento.',
+      'Manter o pagamento em dia até o nascimento do bebê.',
+      'Nos avisar quando o bebê nascer para iniciarmos o pedido.',
+      'Nossa equipe cuidará de toda a parte burocrática junto ao INSS.'
+    ];
+  }
+
+  documentos = [
+    'RG e CPF (cópias)',
+    'Comprovante de residência atualizado',
+    'Carteira de trabalho (se tiver)',
+    `Certidão de nascimento do bebê ${isAdocao ? '/ termo de guarda judicial' : ''} (assim que disponível)`,
+    'Dados bancários para depósito do benefício'
+  ];
+
+  const html = `
+    <div style="padding:0;font-family:Arial,sans-serif;color:#1a1a1f;">
+      ${cabecalhoPDF()}
+
+      <div style="background:#f7f7f8;border-left:4px solid #C9A84C;padding:14px 18px;margin-bottom:18px;border-radius:4px;">
+        <div style="font-size:14pt;font-weight:bold;color:#0D2340;margin-bottom:6px;">Olá, ${pNome}!</div>
+        <div style="font-size:10pt;color:#4a4a52;">Aqui está um resumo do seu atendimento sobre o salário-maternidade.</div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12pt;font-weight:bold;color:#0D2340;border-bottom:2px solid #C9A84C;padding-bottom:5px;margin-bottom:10px;">Sobre o seu caso</div>
+        <p style="font-size:10.5pt;line-height:1.6;text-align:justify;">${mensagemSituacao}</p>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12pt;font-weight:bold;color:#0D2340;border-bottom:2px solid #C9A84C;padding-bottom:5px;margin-bottom:10px;">Próximos passos</div>
+        <ol style="font-size:10.5pt;line-height:1.7;padding-left:22px;">
+          ${proximosPassos.map(p => `<li style="margin-bottom:5px;">${p}</li>`).join('')}
+        </ol>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12pt;font-weight:bold;color:#0D2340;border-bottom:2px solid #C9A84C;padding-bottom:5px;margin-bottom:10px;">Documentos que vamos precisar</div>
+        <ul style="font-size:10.5pt;line-height:1.7;padding-left:22px;">
+          ${documentos.map(d => `<li style="margin-bottom:4px;">${d}</li>`).join('')}
+        </ul>
+      </div>
+
+      <div style="background:#0D2340;color:white;padding:14px 18px;border-radius:4px;margin-bottom:16px;">
+        <div style="font-size:11pt;font-weight:bold;margin-bottom:6px;">Fale com a gente</div>
+        <div style="font-size:9.5pt;line-height:1.6;">
+          Qualquer dúvida, entre em contato com a nossa equipe pelo WhatsApp ou pelos canais de atendimento que você já tem.
+          Estamos aqui para cuidar do seu caso do início ao fim — você não precisa se preocupar com a burocracia do INSS.
+        </div>
+      </div>
+
+      ${rodapePDF('cliente')}
+    </div>
+  `;
+
+  // Overlay de loading durante a geração
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(13,35,64,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;color:white;font-family:Arial;font-size:16pt;';
+  overlay.innerHTML = '<div style="text-align:center;"><div style="font-size:48pt;margin-bottom:12px;">📋</div><div>Gerando PDF Cliente...</div><div style="font-size:11pt;margin-top:8px;opacity:0.7;">Aguarde alguns segundos</div></div>';
+  document.body.appendChild(overlay);
+
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  container.style.cssText = 'width:180mm;background:white;padding:0;box-sizing:border-box;position:absolute;top:0;left:0;z-index:99998;';
+  document.body.appendChild(container);
+
+  const opt = {
+    margin: [15, 15, 15, 15],
+    filename: `Orientacao-SM-${slugificar(a.nomeCliente)}.pdf`,
+    image: { type: 'jpeg', quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true, letterRendering: true, logging: false, backgroundColor: '#ffffff' },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+
+  html2pdf().set(opt).from(container).save().then(() => {
+    document.body.removeChild(container);
+    document.body.removeChild(overlay);
+    btn.disabled = false;
+    btn.innerHTML = '📋 PDF Cliente';
+  }).catch(err => {
+    console.error('Erro ao gerar PDF:', err);
+    alert('Erro ao gerar PDF: ' + err.message);
+    if (container.parentNode) document.body.removeChild(container);
+    if (overlay.parentNode) document.body.removeChild(overlay);
+    btn.disabled = false;
+    btn.innerHTML = '📋 PDF Cliente';
+  });
+}
+
+$('#btn_analisar').addEventListener('click', analisar);
+$('#btn_voltar').addEventListener('click', () => showSection('entrada'));
+$('#btn_nova').addEventListener('click', () => { if (confirm('Limpar todos os dados e iniciar nova análise?')) location.reload(); });
+$('#btn_limpar').addEventListener('click', () => { if (confirm('Limpar todos os campos?')) location.reload(); });
+$('#btn_pdf_interno').addEventListener('click', gerarPDFInterno);
+$('#btn_pdf_cliente').addEventListener('click', gerarPDFCliente);
+</script>
+
+</body>
+</html>
