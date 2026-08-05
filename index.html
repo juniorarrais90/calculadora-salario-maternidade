@@ -481,6 +481,50 @@
     margin: 0 2px;
   }
 
+  .alerta-consistencia {
+    background: #fff4f4;
+    border: 2px solid #b3261e;
+    border-left: 6px solid #b3261e;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+  }
+  .alerta-consistencia .titulo-alerta {
+    font-size: 13px;
+    font-weight: bold;
+    color: #b3261e;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .alerta-consistencia p {
+    font-size: 13px;
+    line-height: 1.55;
+    margin: 0;
+  }
+  .aviso-categoria {
+    margin-top: 8px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .aviso-categoria.hidden { display: none; }
+  .aviso-categoria strong { font-weight: bold; }
+  .aviso-categoria.info {
+    background: var(--navy-soft); color: var(--navy); border-left: 4px solid var(--navy);
+  }
+  .aviso-categoria.atencao {
+    background: var(--amber-soft); color: var(--amber); border-left: 4px solid var(--amber);
+  }
+  .aviso-categoria.critico {
+    background: #fff4f4; color: #b3261e; border-left: 5px solid #b3261e;
+    border: 2px solid #b3261e; font-size: 12.5px;
+  }
+  .aviso-categoria .titulo-aviso {
+    display: block; font-weight: bold; text-transform: uppercase;
+    letter-spacing: 0.4px; margin-bottom: 4px; font-size: 11.5px;
+  }
   .atencao-pos-eleicao {
     background: linear-gradient(135deg, #fdf5e0 0%, #faf6e8 100%);
     border: 2px solid var(--amber);
@@ -846,6 +890,7 @@
               <option value="desempregada">Sem contribuição ativa (período de graça)</option>
             </select>
             <div class="hint">Como a cliente vai estar na hora do nascimento (ou já está, se já nasceu).</div>
+            <div id="aviso_categoria_parto" class="aviso-categoria hidden"></div>
           </div>
 
           <div class="field hidden" id="field_plano">
@@ -913,7 +958,7 @@
 
         <div style="background: var(--gray-1); padding: 16px 20px; border-radius: 6px; margin-bottom: 18px; border-left: 3px solid var(--navy);">
           <div style="font-size: 12px; color: var(--gray-4); margin-bottom: 12px; line-height: 1.6;">
-            Marque as prorrogações aplicáveis ao caso (<strong>art. 15, §§ 1º e 2º, da Lei 8.213/91</strong>). Cada item adiciona 12 meses ao período base. Podem ser cumulativos — até 36 meses (ou 18 meses para facultativa).
+            Marque as prorrogações aplicáveis ao caso (<strong>art. 15, §§ 1º e 2º, da Lei 8.213/91</strong>). Cada item adiciona 12 meses ao prazo do inciso II — cumulativos, até 36 meses. Não se aplicam ao prazo de 6 meses da segurada facultativa (art. 15, VI). Em qualquer hipótese soma-se o prazo do § 4º, que desloca a perda para o dia 16 do 2º mês seguinte ao termo.
           </div>
           <div class="form-grid">
             <div class="field">
@@ -978,6 +1023,7 @@
 
       <div class="panel">
         <div id="resultado-final-container"></div>
+        <div id="alerta-consistencia-container"></div>
         <div id="atencao-container"></div>
         <div id="explicacao-container"></div>
         <div id="plano-acao-container"></div>
@@ -997,13 +1043,13 @@
   <footer>
     <strong>ARRAIS ADVOGADOS · OAB/MG 19.391</strong> · Ferramenta de uso interno · Não substitui análise jurídica individualizada<br>
     Base normativa: Lei 8.213/91 · IN PRES/INSS 128/2022 · ADIs 2.110 e 2.111/STF · IN 188/2025<br>
-    <span style="opacity:0.6">v3.6.1 · maio/2026</span>
+    <span style="opacity:0.6">v3.7.1 · agosto/2026</span>
   </footer>
 </div>
 
 <script>
 // =====================================================================
-// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.6.1
+// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.7.1
 // Lógica jurídica:
 // - ADIs 2.110 e 2.111 (STF, j. 21/03/2024, ac. publ. 24/05/2024)
 // - IN 188/2025: isenção aplicada a requerimentos a partir de 05/04/2024
@@ -1014,6 +1060,16 @@
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 const DATA_CORTE = new Date('2026-12-31T23:59:59');
+
+// Tipo de filiação registrado no CNIS -> categoria previdenciária do formulário
+const TIPO_PARA_CATEGORIA = {
+  'empregado': 'empregada', 'domestica': 'domestica', 'avulso': 'avulsa',
+  'ci': 'individual', 'facultativo': 'facultativa', 'mei': 'mei', 'especial': 'especial'
+};
+
+// A categoria na data do parto só é sobrescrita automaticamente enquanto a
+// atendente não tiver escolhido uma manualmente.
+let categoriaPartoEditadaManualmente = false;
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
@@ -1026,6 +1082,9 @@ function showSection(id) {
 
 // ----- CATEGORIA → CAMPOS CONDICIONAIS ------------------------------
 $('#categoria').addEventListener('change', (e) => {
+  // Eventos disparados por código têm isTrusted = false: só a escolha humana
+  // bloqueia o preenchimento automático.
+  if (e.isTrusted) categoriaPartoEditadaManualmente = true;
   const v = e.target.value;
   $('#campos_especial').classList.toggle('hidden', v !== 'especial');
   $('#campos_desempregada').classList.toggle('hidden', v !== 'desempregada');
@@ -1061,11 +1120,19 @@ function atualizarPreviewGraca() {
     return;
   }
 
-  const base = cat === 'facultativa' ? 6 : 12;
+  // O prazo é definido pela categoria da filiação que cessou.
+  const catGraca = $('#categoria_ultimo_vinculo').value || cat;
+  const ehFacultativa = catGraca === 'facultativa';
+  const base = ehFacultativa ? 6 : 12;
   let total = base;
-  let composicao = `${base} meses (base${cat === 'facultativa' ? ' — facultativa' : ''})`;
-  if (tinha120) { total += 12; composicao += ' + 12 (120+ contribuições)'; }
-  if (desempInv) { total += 12; composicao += ' + 12 (desemprego involuntário)'; }
+  let composicao = `${base} meses (base — ${ehFacultativa ? 'facultativa, art. 15, VI' : 'art. 15, II'})`;
+  if (!ehFacultativa) {
+    if (tinha120) { total += 12; composicao += ' + 12 (120+ contribuições, § 1º)'; }
+    if (desempInv) { total += 12; composicao += ' + 12 (desemprego involuntário, § 2º)'; }
+  } else if (tinha120 || desempInv) {
+    composicao += ' — §§ 1º e 2º não prorrogam o prazo do facultativo';
+  }
+  composicao += '. Somado o art. 15, § 4º: proteção até o dia 15 do 2º mês seguinte ao termo.';
 
   preview.style.display = 'block';
   preview.style.background = 'var(--navy-soft)';
@@ -1075,6 +1142,97 @@ function atualizarPreviewGraca() {
     <span style="font-weight:normal;font-size:11px">Composição: ${composicao}</span>`;
 }
 
+// ----- CATEGORIA NA DATA DO PARTO — DEDUZIDA DO HISTÓRICO ------------
+// A categoria do último vínculo NÃO pode ser espelhada no campo do parto: se o
+// vínculo se encerrou antes do fato gerador, na data do parto a segurada estava
+// em período de graça, não empregada. Espelhar inverte toda a análise.
+function mostrarAvisoCategoria(nivel, titulo, texto) {
+  const box = $('#aviso_categoria_parto');
+  if (!box) return;
+  if (!nivel) { box.className = 'aviso-categoria hidden'; box.innerHTML = ''; return; }
+  box.className = 'aviso-categoria ' + nivel;
+  box.innerHTML = `<span class="titulo-aviso">${titulo}</span>${texto}`;
+}
+
+function definirCategoriaParto(valor) {
+  if ($('#categoria').value === valor) return;
+  $('#categoria').value = valor;
+  $('#categoria').dispatchEvent(new Event('change'));
+}
+
+function inferirCategoriaNoParto() {
+  if (!$('#aviso_categoria_parto')) return;
+  const dataParto = parseDate($('#data_parto').value);
+  const vinculos = coletarVinculos();
+
+  if (!dataParto) {
+    mostrarAvisoCategoria('atencao', '⚠ Falta a data do fato gerador',
+      'Informe a data do parto para que o sistema determine, a partir do histórico contributivo, como a segurada estava filiada naquela data.');
+    return;
+  }
+  if (vinculos.length === 0) { mostrarAvisoCategoria(null); return; }
+
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const partoFuturo = dataParto > hoje;
+
+  // Vínculo vigente na data do fato gerador
+  const ativo = vinculos
+    .filter(v => v.inicio <= dataParto && (v.emAberto || v.fim >= dataParto))
+    .sort((a, b) => b.inicio - a.inicio)[0];
+
+  if (partoFuturo) {
+    // DPP futura: a categoria no nascimento é projeção, não dado do CNIS.
+    if (!categoriaPartoEditadaManualmente && $('#categoria').value) definirCategoriaParto('');
+    mostrarAvisoCategoria('critico', '⚠ Preenchimento obrigatório — não deduzível do CNIS',
+      `O parto está previsto para <strong>${formatDate(dataParto)}</strong>, data futura. O CNIS só registra o passado: ` +
+      'como a cliente estará filiada no nascimento depende do que ela fizer daqui até lá. ' +
+      '<strong>Confirme com a cliente</strong> se ela seguirá contribuindo, se o vínculo se manterá ativo ou se estará em período de graça, e preencha o campo acima manualmente.');
+    return;
+  }
+
+  // Parto já ocorrido: o histórico responde qual era a filiação naquela data.
+  const ultimo = vinculos.reduce((a, b) => (b.fim > a.fim ? b : a));
+  let inferida, nivel, titulo, texto;
+
+  if (ativo) {
+    inferida = TIPO_PARA_CATEGORIA[ativo.tipo] || '';
+    nivel = 'info';
+    titulo = '✓ Deduzido do histórico contributivo';
+    texto = `Na data do parto (<strong>${formatDate(dataParto)}</strong>) havia filiação ativa` +
+      `${ativo.empregador ? ' — <strong>' + ativo.empregador + '</strong>' : ''}` +
+      ` (${formatDate(ativo.inicio)} → ${ativo.emAberto ? 'em aberto' : formatDate(ativo.fim)}).`;
+  } else {
+    inferida = 'desempregada';
+    nivel = 'atencao';
+    titulo = '⚠ Sem contribuição ativa na data do parto';
+    texto = `O último vínculo encerrou-se em <strong>${formatDate(ultimo.fim)}</strong>, antes do parto ` +
+      `(<strong>${formatDate(dataParto)}</strong>). Na data do fato gerador a segurada <strong>não tinha ` +
+      'contribuição ativa</strong> — a análise correta é a de período de graça (art. 15 da Lei 8.213/91), ' +
+      'e não a de segurada obrigatória. Campo preenchido automaticamente.';
+  }
+
+  if (!inferida) { mostrarAvisoCategoria(null); return; }
+
+  if (categoriaPartoEditadaManualmente && $('#categoria').value && $('#categoria').value !== inferida) {
+    const rotulos = {
+      'empregada': 'Empregada CLT', 'domestica': 'Empregada Doméstica', 'avulsa': 'Trabalhadora Avulsa',
+      'individual': 'Contribuinte Individual', 'mei': 'MEI', 'facultativa': 'Facultativa',
+      'especial': 'Segurada Especial', 'desempregada': 'Sem contribuição ativa (período de graça)'
+    };
+    mostrarAvisoCategoria('critico', '⚠ Divergência com o histórico contributivo',
+      `Foi selecionado <strong>${rotulos[$('#categoria').value] || $('#categoria').value}</strong>, mas o histórico ` +
+      `indica <strong>${rotulos[inferida] || inferida}</strong> na data do parto. ${texto} ` +
+      'Confira antes de analisar — se a seleção manual estiver errada, o resultado sairá errado.');
+    return;
+  }
+
+  definirCategoriaParto(inferida);
+  mostrarAvisoCategoria(nivel, titulo, texto);
+}
+
+$('#data_parto').addEventListener('change', inferirCategoriaNoParto);
+$('#vinculos_lista').addEventListener('change', inferirCategoriaNoParto);
+$('#categoria_ultimo_vinculo').addEventListener('change', atualizarPreviewGraca);
 $('#tinha_120').addEventListener('change', atualizarPreviewGraca);
 $('#desemprego_involuntario').addEventListener('change', atualizarPreviewGraca);
 
@@ -1209,35 +1367,22 @@ async function processarCNIS(file) {
         addVinculo(v.empregador, v.inicio, v.fim, v.tipo);
       });
 
-      // Auto-detectar categoria do ÚLTIMO vínculo e preencher os dois selects
-      const tipoParaCategoria = {
-        'empregado': 'empregada',
-        'domestica': 'domestica',
-        'avulso': 'avulsa',
-        'ci': 'individual',
-        'facultativo': 'facultativa',
-        'mei': 'mei',
-        'especial': 'especial'
+      // Categoria do ÚLTIMO vínculo = o de maior data de FIM. Ordenar por data
+      // de início erra o alvo quando há vínculos concomitantes — rotina no CNIS.
+      const paraData = (s) => {
+        if (!s || /^(EM ABERTO|ABERTO)\s*$/i.test(String(s).trim())) return new Date(8640000000000000);
+        const p = String(s).split('/');
+        return p.length === 3 ? new Date(+p[2], +p[1] - 1, +p[0]) : new Date(0);
       };
-      // Buscar o vínculo mais recente (maior data de início)
-      const vinculosOrdenados = [...dados.vinculos].sort((a, b) => {
-        const da = a.inicio.split('/').reverse().join('-');
-        const db = b.inicio.split('/').reverse().join('-');
-        return db.localeCompare(da);
-      });
-      const ultimoVinculo = vinculosOrdenados[0];
-      const categoriaDetectada = tipoParaCategoria[ultimoVinculo.tipo];
+      const ultimoVinculo = [...dados.vinculos].sort((a, b) => paraData(b.fim) - paraData(a.fim))[0];
+      const categoriaDetectada = TIPO_PARA_CATEGORIA[ultimoVinculo.tipo];
       if (categoriaDetectada) {
-        // Preencher campo "Categoria no último vínculo"
         $('#categoria_ultimo_vinculo').value = categoriaDetectada;
-        // Sugerir o mesmo valor para "Categoria na data do parto"
-        // (se a atendente quiser mudar, edita manualmente)
-        if (!$('#categoria').value) {
-          $('#categoria').value = categoriaDetectada;
-          // Disparar evento change para atualizar campos condicionais
-          $('#categoria').dispatchEvent(new Event('change'));
-        }
+        atualizarPreviewGraca();
       }
+      // A categoria NA DATA DO PARTO não é espelhada: é deduzida do histórico
+      // em função da data do fato gerador.
+      inferirCategoriaNoParto();
     }
 
     if (dados.vinculos.length > 0) {
@@ -1839,20 +1984,39 @@ function coletarVinculos() {
   rows.forEach(row => {
     const emp = row.querySelector('.v-emp').value;
     const inicio = parseDate(row.querySelector('.v-inicio').value);
-    const fimRaw = row.querySelector('.v-fim').value;
-    const fim = parseDate(fimRaw) || new Date();
+    const fimRaw = (row.querySelector('.v-fim').value || '').trim();
+    // Vínculo "em aberto" continua vigente: não pode ser tratado como encerrado
+    // hoje, sob pena de a segurada com DPP futura cair indevidamente no período
+    // de graça em vez de figurar como contribuinte ativa no fato gerador.
+    const emAberto = fimRaw === '' || /^(EM ABERTO|ABERTO)$/i.test(fimRaw);
+    const fim = emAberto ? new Date() : (parseDate(fimRaw) || new Date());
     const tipo = row.querySelector('.v-tipo')?.value || 'empregado';
-    if (inicio) lista.push({ empregador: emp, inicio, fim, meses: diffMeses(inicio, fim), tipo });
+    if (inicio) lista.push({ empregador: emp, inicio, fim, emAberto, meses: diffMeses(inicio, fim), tipo });
   });
   return lista.sort((a, b) => a.inicio - b.inicio);
 }
 
+// Período de graça — art. 15 da Lei 8.213/91.
+// Base: 12 meses (inciso II) ou 6 meses para o segurado facultativo (inciso VI).
+// §§ 1º e 2º prorrogam expressamente APENAS o prazo do inciso II — não alcançam
+// o prazo do facultativo.
+// § 4º: a perda da qualidade só ocorre no dia seguinte ao término do prazo de
+// recolhimento da contribuição do mês seguinte ao final do período — ou seja,
+// no dia 16 do 2º mês seguinte. A qualidade fica mantida até o dia 15 desse mês.
 function calcularPeriodoDeGraca(dataUltimoVinculo, tinha120, desempregoInvol, categoria) {
-  let meses = 12;
-  if (categoria === 'facultativa') meses = 6;
-  if (tinha120) meses += 12;
-  if (desempregoInvol) meses += 12;
-  return { meses, fimGraca: addMeses(dataUltimoVinculo, meses) };
+  const ehFacultativa = categoria === 'facultativa';
+  let meses = ehFacultativa ? 6 : 12;
+  const prorrogacoes = [];
+  if (!ehFacultativa) {
+    if (tinha120) { meses += 12; prorrogacoes.push('+12 meses — 120+ contribuições (art. 15, § 1º)'); }
+    if (desempregoInvol) { meses += 12; prorrogacoes.push('+12 meses — desemprego involuntário (art. 15, § 2º)'); }
+  }
+  const termo = addMeses(dataUltimoVinculo, meses);
+  const fimGraca = new Date(termo.getFullYear(), termo.getMonth() + 2, 15);
+  return {
+    meses, termo, fimGraca, prorrogacoes,
+    facultativaSemProrrogacao: ehFacultativa && (tinha120 || desempregoInvol)
+  };
 }
 
 function totalContribuicoes(vinculos, dataParto) {
@@ -1876,7 +2040,8 @@ function contribuicoesAposPerda(vinculos, fimGraca, dataParto) {
 }
 
 function temVinculoAtivoNoParto(vinculos, dataParto) {
-  return vinculos.some(v => v.inicio <= dataParto && v.fim >= dataParto);
+  // Vínculo em aberto permanece ativo em qualquer data futura do fato gerador.
+  return vinculos.some(v => v.inicio <= dataParto && (v.emAberto || v.fim >= dataParto));
 }
 
 function analisar() {
@@ -1889,6 +2054,23 @@ function analisar() {
 
   const fatoGerador = $('#fato_gerador').value;
   const vinculos = coletarVinculos();
+
+  // Barreira de segurança: parto já ocorrido, categoria de segurada obrigatória
+  // declarada, mas nenhum vínculo ativo naquela data. É o erro que mais
+  // contamina a análise — exige confirmação expressa.
+  const hojeRef = new Date(); hojeRef.setHours(23, 59, 59, 999);
+  if (dataParto <= hojeRef && ['empregada', 'domestica', 'avulsa'].includes(categoria)
+      && vinculos.length > 0 && !temVinculoAtivoNoParto(vinculos, dataParto)) {
+    const segue = confirm(
+      'ATENÇÃO — POSSÍVEL ERRO DE PREENCHIMENTO\n\n' +
+      'A categoria informada para a data do parto é de segurada obrigatória (CLT / doméstica / avulsa), ' +
+      'mas nenhum vínculo do histórico estava ativo em ' + formatDate(dataParto) + '.\n\n' +
+      'Se o vínculo já havia se encerrado, a categoria correta é "Sem contribuição ativa (período de graça)". ' +
+      'Mantendo como está, a ferramenta vai reconhecer qualidade de segurada automática e o resultado sairá errado.\n\n' +
+      'Deseja continuar mesmo assim?'
+    );
+    if (!segue) return;
+  }
 
   const ehDuploCenario = dataParto > DATA_CORTE;
 
@@ -1932,6 +2114,12 @@ function analisarQualidadeSegurada(categoria, vinculos, dataParto) {
       'avulsa': 'Trabalhadora avulsa com atividade ativa na data do parto'
     };
     resultado.motivo = `${labels[categoria]} — qualidade de segurada garantida por filiação obrigatória (art. 11, I, Lei 8.213/91). Salário-maternidade é dispensado de carência (art. 26, VI).`;
+    // A qualidade automática decorre da categoria DECLARADA. Se o histórico não
+    // mostra vínculo ativo no fato gerador, há inconsistência a conferir antes
+    // de orientar a cliente.
+    if (!temVinculoAtivoNoParto(vinculos, dataParto)) {
+      resultado.alerta = 'Categoria declarada como segurada obrigatória (CLT/doméstica/avulsa), mas o histórico informado não registra vínculo ativo na data do fato gerador. Conferir a categoria selecionada e a data de encerramento do último vínculo antes de orientar a cliente — se o vínculo já se encerrou, a análise correta é a de período de graça.';
+    }
     return resultado;
   }
 
@@ -1952,7 +2140,10 @@ function analisarQualidadeSegurada(categoria, vinculos, dataParto) {
   const vinculoAtivo = temVinculoAtivoNoParto(vinculos, dataParto);
   if (vinculoAtivo) {
     resultado.temQualidade = true;
-    resultado.motivo = 'Segurada com vínculo/contribuição ativa na data do fato gerador.';
+    const emCurso = vinculos.some(v => v.emAberto && v.inicio <= dataParto);
+    resultado.motivo = emCurso && dataParto > new Date()
+      ? 'Segurada com vínculo/contribuição em curso. Mantida a regularidade dos recolhimentos até o fato gerador, a qualidade de segurada estará preservada na data do parto — não se cogita de período de graça.'
+      : 'Segurada com vínculo/contribuição ativa na data do fato gerador.';
     return resultado;
   }
 
@@ -1961,22 +2152,33 @@ function analisarQualidadeSegurada(categoria, vinculos, dataParto) {
     return resultado;
   }
 
-  const ultimoVinculo = vinculos[vinculos.length - 1];
+  // O período de graça corre da ÚLTIMA cessação de contribuições, isto é, do
+  // vínculo de maior data de FIM — e não do de início mais recente. Vínculos
+  // concomitantes e sobrepostos são rotina no CNIS.
+  const ultimoVinculo = vinculos.reduce((a, b) => (b.fim > a.fim ? b : a));
   const dataFimUltimo = ultimoVinculo.fim;
   const tinha120 = $('#tinha_120').value === 'sim';
   const desempregoInvol = $('#desemprego_involuntario').value === 'sim';
 
-  const graca = calcularPeriodoDeGraca(dataFimUltimo, tinha120, desempregoInvol, categoria);
+  // O prazo do art. 15 é definido pela filiação que CESSOU, não pela categoria
+  // pretendida na data do parto.
+  const categoriaGraca = $('#categoria_ultimo_vinculo').value || categoria;
+  const graca = calcularPeriodoDeGraca(dataFimUltimo, tinha120, desempregoInvol, categoriaGraca);
   resultado.fimGraca = graca.fimGraca;
   resultado.mesesGraca = graca.meses;
+  resultado.termoGraca = graca.termo;
+  resultado.categoriaGraca = categoriaGraca;
   resultado.dataFimUltimo = dataFimUltimo;
+  if (graca.facultativaSemProrrogacao) {
+    resultado.alerta = 'A última filiação foi como segurada facultativa: o prazo é de 6 meses (art. 15, VI) e as prorrogações dos §§ 1º e 2º não se aplicam, pois alcançam apenas o prazo do inciso II. As marcações de 120+ contribuições e de desemprego involuntário foram desconsideradas no cálculo.';
+  }
 
   if (dataParto <= graca.fimGraca) {
     resultado.temQualidade = true;
     resultado.emPeriodoDeGraca = true;
-    resultado.motivo = `Em período de graça (art. 15 da Lei 8.213/91). Qualidade mantida até ${formatDate(graca.fimGraca)} (${graca.meses} meses após ${formatDate(dataFimUltimo)}).`;
+    resultado.motivo = `Em período de graça (art. 15 da Lei 8.213/91). Qualidade mantida até ${formatDate(graca.fimGraca)} — ${graca.meses} meses contados de ${formatDate(dataFimUltimo)} (termo em ${formatDate(graca.termo)}), acrescidos do prazo do art. 15, § 4º, que desloca a perda para o dia 16 do 2º mês seguinte.`;
   } else {
-    resultado.motivo = `Período de graça expirou em ${formatDate(graca.fimGraca)} — perda da qualidade de segurada antes do fato gerador.`;
+    resultado.motivo = `Período de graça expirou em ${formatDate(graca.fimGraca)} — ${graca.meses} meses contados de ${formatDate(dataFimUltimo)}, já computado o prazo do art. 15, § 4º. Perda da qualidade de segurada antes do fato gerador.`;
     resultado.contribAposPerda = contribuicoesAposPerda(vinculos, graca.fimGraca, dataParto);
     // QUALIDADE: basta 1 contribuição em dia após a perda para recuperar a qualidade
     // (art. 15, II, Lei 8.213/91 + regra geral do RGPS)
@@ -2160,6 +2362,7 @@ function renderizar(categoria, fatoGerador, dataParto, qualidade, contribTotal, 
   }
 
   renderResultadoFinal(cenarioId, dataParto);
+  renderAlertaConsistencia(qualidade);
   renderAtencaoPosEleicao(cenarioId, dataParto);
   renderExplicacao(cenarioId, categoria, qualidade, dataParto, protetivo);
   renderFinanceiro(cenarioId, categoria, fatoGerador, qualidade, protetivo, dataParto);
@@ -2271,6 +2474,22 @@ function renderAtencaoPosEleicao(cenarioId, dataParto) {
       <p>O parto está previsto para <strong>${dataPartoStr}</strong>, depois de 31/12/2026 (margem de segurança pós-posse presidencial).</p>
       <p>Hoje, o STF derrubou a exigência de carência para salário-maternidade (ADIs 2.110 e 2.111). Mas <strong>há expectativa de que essa regra seja revertida</strong> por lei nova ou nova decisão judicial depois das eleições. Se isso acontecer, voltaria a exigir 10 contribuições (ou 5 para recuperação).</p>
       ${textoExtra}
+    </div>
+  `;
+}
+
+// ====== ALERTA DE CONSISTÊNCIA (uso interno) =============================
+// Sinaliza divergência entre o que foi informado no formulário e o que o
+// histórico contributivo mostra. Não altera o veredicto — obriga conferência.
+function renderAlertaConsistencia(qualidade) {
+  if (!qualidade || !qualidade.alerta) {
+    $('#alerta-consistencia-container').innerHTML = '';
+    return;
+  }
+  $('#alerta-consistencia-container').innerHTML = `
+    <div class="alerta-consistencia">
+      <div class="titulo-alerta">⚠ Conferir antes de orientar a cliente</div>
+      <p>${qualidade.alerta}</p>
     </div>
   `;
 }
@@ -2947,6 +3166,8 @@ function abrirJanelaPDF(titulo, conteudoHTML, nomeArquivoSugerido) {
       .value { font-weight: bold; }
       .value.ok { color: #2d7a3e; }
       .value.no { color: #a83232; }
+      .alerta-consistencia { background: #fff4f4; border-left: 4px solid #b3261e; padding: 12px 14px; border-radius: 4px; margin-bottom: 14px; }
+      .alerta-consistencia .titulo-alerta { font-weight: bold; color: #b3261e; text-transform: uppercase; }
       .atencao-pos-eleicao { background: #fdf5e0; border-left: 4px solid #b8860b; padding: 12px 14px; border-radius: 4px; margin-bottom: 14px; }
       .aviso-urgencia { background: #a83232; color: white; padding: 12px 14px; border-radius: 4px; margin-bottom: 14px; }
       .aviso-urgencia-titulo { font-weight: bold; }
@@ -3002,6 +3223,7 @@ function gerarPDFInterno() {
 
   // Capturar o conteúdo do resultado já renderizado
   const veredicto = $('#resultado-final-container').innerHTML;
+  const alertaConsistencia = $('#alerta-consistencia-container').innerHTML;
   const atencao = $('#atencao-container').innerHTML;
   const explicacao = $('#explicacao-container').innerHTML;
   const planoAcao = $('#plano-acao-container').innerHTML;
@@ -3050,7 +3272,7 @@ function gerarPDFInterno() {
     </div>
   `;
 
-  const conteudo = cabecalho + dadosCaso + veredicto + atencao +
+  const conteudo = cabecalho + dadosCaso + veredicto + alertaConsistencia + atencao +
     '<h3>SITUAÇÃO DO CASO</h3>' + explicacao +
     planoAcao +
     '<h3>ANÁLISE FINANCEIRA</h3>' + financeiro +
