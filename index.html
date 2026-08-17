@@ -872,8 +872,30 @@
               <option value="mei">MEI</option>
               <option value="facultativa">Facultativa</option>
               <option value="especial">Segurada Especial (rural)</option>
+              <option value="beneficio">Em gozo de benefício do INSS (art. 15, I)</option>
             </select>
             <div class="hint">Preenchida automaticamente ao subir o CNIS. Pode editar.</div>
+          </div>
+
+          <div class="field hidden" id="field_especie_beneficio">
+            <label>Espécie do benefício recebido <span class="req">*</span></label>
+            <select id="especie_beneficio">
+              <option value="80">80 — Salário-maternidade</option>
+              <option value="31">31 — Auxílio por incapacidade temporária (auxílio-doença)</option>
+              <option value="91">91 — Auxílio-doença acidentário</option>
+              <option value="32">32 — Aposentadoria por incapacidade permanente</option>
+              <option value="21">21 — Pensão por morte</option>
+              <option value="25">25 — Auxílio-reclusão</option>
+              <option value="41">41 — Aposentadoria por idade</option>
+              <option value="42">42 — Aposentadoria por tempo de contribuição</option>
+              <option value="36">36 — Auxílio-acidente (NÃO mantém a qualidade)</option>
+              <option value="94">94 — Auxílio-acidente acidentário (NÃO mantém a qualidade)</option>
+              <option value="87">87 — BPC/LOAS deficiente (assistencial — NÃO mantém)</option>
+              <option value="88">88 — BPC/LOAS idoso (assistencial — NÃO mantém)</option>
+            </select>
+            <div class="hint">Art. 15, I, da Lei 8.213/91 — o gozo de benefício mantém a qualidade
+            independentemente de contribuição, <strong>exceto</strong> auxílio-acidente. O BPC/LOAS
+            é assistencial e não gera qualidade de segurada.</div>
           </div>
 
           <div class="field">
@@ -888,6 +910,7 @@
               <option value="facultativa">Facultativa</option>
               <option value="especial">Segurada Especial (rural)</option>
               <option value="desempregada">Sem contribuição ativa (período de graça)</option>
+              <option value="beneficio">Recebendo benefício do INSS na data do parto (art. 15, I)</option>
             </select>
             <div class="hint">Como a cliente vai estar na hora do nascimento (ou já está, se já nasceu).</div>
             <div id="aviso_categoria_parto" class="aviso-categoria hidden"></div>
@@ -1042,7 +1065,7 @@
 
   <footer>
     <strong>ARRAIS ADVOGADOS · OAB/MG 19.391</strong> · Ferramenta de uso interno · Não substitui análise jurídica individualizada<br>
-    Base normativa: Lei 8.213/91 · IN PRES/INSS 128/2022 · ADIs 2.110 e 2.111/STF · IN 188/2025<br>
+    Base normativa: Lei 8.213/91 · Lei 8.212/91 · IN PRES/INSS 128/2022 · STF, ADIs 2.110 e 2.111 (Rel. Min. Nunes Marques) · IN PRES/INSS 188/2025<br>
     <span style="opacity:0.6">v3.7.1 · agosto/2026</span>
   </footer>
 </div>
@@ -1057,14 +1080,23 @@
 // - Extração automática do CNIS via PDF.js
 // =====================================================================
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+// Guard: se o CDN do pdf.js não carregar (rede do escritório, offline, bloqueio),
+// a linha abaixo lançava ReferenceError e derrubava TODO o script — a calculadora
+// ficava inerte, sem mensagem. Agora só o upload de PDF fica indisponível.
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+} else {
+  console.warn('pdf.js indisponível — upload de CNIS desabilitado; usar Digitação Manual.');
+  window.__pdfIndisponivel = true;
+}
 
 const DATA_CORTE = new Date('2026-12-31T23:59:59');
 
 // Tipo de filiação registrado no CNIS -> categoria previdenciária do formulário
 const TIPO_PARA_CATEGORIA = {
   'empregado': 'empregada', 'domestica': 'domestica', 'avulso': 'avulsa',
-  'ci': 'individual', 'facultativo': 'facultativa', 'mei': 'mei', 'especial': 'especial'
+  'ci': 'individual', 'facultativo': 'facultativa', 'mei': 'mei', 'especial': 'especial',
+  'beneficio': 'beneficio'
 };
 
 // A categoria na data do parto só é sobrescrita automaticamente enquanto a
@@ -1123,9 +1155,11 @@ function atualizarPreviewGraca() {
   // O prazo é definido pela categoria da filiação que cessou.
   const catGraca = $('#categoria_ultimo_vinculo').value || cat;
   const ehFacultativa = catGraca === 'facultativa';
+  const ehBeneficioGraca = catGraca === 'beneficio';
   const base = ehFacultativa ? 6 : 12;
   let total = base;
-  let composicao = `${base} meses (base — ${ehFacultativa ? 'facultativa, art. 15, VI' : 'art. 15, II'})`;
+  let composicao = `${base} meses (base — ${ehFacultativa ? 'facultativa, art. 15, VI'
+    : (ehBeneficioGraca ? 'contados da cessação do benefício, art. 15, I c/c II' : 'art. 15, II')})`;
   if (!ehFacultativa) {
     if (tinha120) { total += 12; composicao += ' + 12 (120+ contribuições, § 1º)'; }
     if (desempInv) { total += 12; composicao += ' + 12 (desemprego involuntário, § 2º)'; }
@@ -1232,6 +1266,13 @@ function inferirCategoriaNoParto() {
 
 $('#data_parto').addEventListener('change', inferirCategoriaNoParto);
 $('#vinculos_lista').addEventListener('change', inferirCategoriaNoParto);
+function alternarCampoEspecie() {
+  const mostra = $('#categoria_ultimo_vinculo').value === 'beneficio'
+              || $('#categoria').value === 'beneficio';
+  $('#field_especie_beneficio').classList.toggle('hidden', !mostra);
+}
+$('#categoria_ultimo_vinculo').addEventListener('change', alternarCampoEspecie);
+$('#categoria').addEventListener('change', alternarCampoEspecie);
 $('#categoria_ultimo_vinculo').addEventListener('change', atualizarPreviewGraca);
 $('#tinha_120').addEventListener('change', atualizarPreviewGraca);
 $('#desemprego_involuntario').addEventListener('change', atualizarPreviewGraca);
@@ -1253,7 +1294,7 @@ $$('.mode-tab').forEach(tab => {
 
 // ----- VÍNCULOS MANUAIS ---------------------------------------------
 let vinculoSeq = 0;
-function addVinculo(emp = '', inicio = '', fim = '', tipo = 'empregado') {
+function addVinculo(emp = '', inicio = '', fim = '', tipo = 'empregado', especie = '') {
   vinculoSeq++;
   const id = `v_${vinculoSeq}`;
   const row = document.createElement('div');
@@ -1282,12 +1323,25 @@ function addVinculo(emp = '', inicio = '', fim = '', tipo = 'empregado') {
         <option value="facultativo" ${tipo === 'facultativo' ? 'selected' : ''}>Facultativo</option>
         <option value="mei" ${tipo === 'mei' ? 'selected' : ''}>MEI</option>
         <option value="especial" ${tipo === 'especial' ? 'selected' : ''}>Especial Rural</option>
-        <option value="beneficio" ${tipo === 'beneficio' ? 'selected' : ''}>Benefício anterior</option>
+        <option value="beneficio" ${tipo === 'beneficio' ? 'selected' : ''}>Benefício do INSS</option>
+      </select>
+    </div>
+    <div class="field v-especie-wrap" style="${tipo === 'beneficio' ? '' : 'display:none'}">
+      <label>Espécie</label>
+      <select class="v-especie">
+        ${['80','31','91','32','21','25','41','42','36','94','87','88'].map(c =>
+          `<option value="${c}" ${String(especie) === c ? 'selected' : ''}>${c} — ${ESPECIES_LABEL[c] || c}</option>`
+        ).join('')}
       </select>
     </div>
     <button class="btn-remove" onclick="document.getElementById('${id}').remove()">×</button>
   `;
   $('#vinculos_lista').appendChild(row);
+  const selTipo = row.querySelector('.v-tipo');
+  const wrap = row.querySelector('.v-especie-wrap');
+  selTipo.addEventListener('change', () => {
+    wrap.style.display = selTipo.value === 'beneficio' ? '' : 'none';
+  });
 }
 $('#btn_add_vinculo').addEventListener('click', () => addVinculo());
 // Não chamamos addVinculo() no carregamento porque a aba padrão é "Upload do CNIS".
@@ -1364,7 +1418,7 @@ async function processarCNIS(file) {
       $('#vinculos_lista').innerHTML = '';
       vinculoSeq = 0;
       dados.vinculos.forEach(v => {
-        addVinculo(v.empregador, v.inicio, v.fim, v.tipo);
+        addVinculo(v.empregador, v.inicio, v.fim, v.tipo, v.especie || '');
       });
 
       // Categoria do ÚLTIMO vínculo = o de maior data de FIM. Ordenar por data
@@ -1537,126 +1591,106 @@ async function reconstruirTextoSimples(pdf) {
 }
 
 // ----- PARSER DO CNIS (validado contra layout Meu INSS) -------------
+// Espécies que NÃO mantêm a qualidade de segurada:
+//   36 / 94 — auxílio-acidente (exceção expressa do art. 15, I, Lei 8.213/91)
+//   87 / 88 — BPC/LOAS: benefício assistencial, não previdenciário
+const ESPECIES_SEM_QUALIDADE = new Set(['36', '94', '87', '88']);
+
+// Espécies cujo período de gozo é salário de contribuição e, portanto, conta
+// carência — art. 28, § 2º, da Lei 8.212/91. Benefícios por incapacidade só
+// contam se intercalados (art. 29, § 5º), o que exige conferência humana.
+const ESPECIES_CONTAM_CARENCIA = new Set(['80']);
+
+const ESPECIES_LABEL = {
+  '80': 'Salário-maternidade', '31': 'Auxílio por incapacidade temporária',
+  '91': 'Auxílio-doença acidentário', '32': 'Aposentadoria por incapacidade permanente',
+  '21': 'Pensão por morte', '25': 'Auxílio-reclusão',
+  '41': 'Aposentadoria por idade', '42': 'Aposentadoria por tempo de contribuição',
+  '36': 'Auxílio-acidente', '94': 'Auxílio-acidente acidentário',
+  '87': 'BPC/LOAS deficiente', '88': 'BPC/LOAS idoso'
+};
+
+const TIPOS_FILIADO_CNIS = [
+  { re: /Contribuinte\s+Individual/i,               tipo: 'ci' },
+  { re: /Microempreendedor\s+Individual|\bMEI\b/i,  tipo: 'mei' },
+  { re: /Empregado\s+Dom[eé]stico/i,                tipo: 'domestica' },
+  { re: /Trabalhador\s+Avulso/i,                    tipo: 'avulso' },
+  { re: /Segurado\s+Especial/i,                     tipo: 'especial' },
+  { re: /Facultativo/i,                             tipo: 'facultativo' },
+  { re: /Empregado(\s+ou\s+Agente\s+P[uú]blico)?/i, tipo: 'empregado' },
+];
+
+// parseCNIS v2 — suporta o layout "Extrato Previdenciário" do Meu INSS
+// (2025/2026) e o layout antigo. Diferença central em relação à v1: não se
+// exige que a linha TERMINE em data. O layout atual encerra as linhas com
+// indicadores (IREC-INDPEND) ou com a situação do benefício (2 - CESSADO),
+// o que fazia a v1 descartar silenciosamente todos os registros.
 function parseCNIS(texto) {
   const dados = { nome: '', vinculos: [] };
 
-  // 1) NOME — aparece como "Nome: FULANA DE TAL" antes de "Data de nascimento"
   const mNome = texto.match(/Nome\s*:?\s*([A-ZÁÉÍÓÚÂÊÔÀÃÕÇÑ][A-ZÁÉÍÓÚÂÊÔÀÃÕÇÑ\s]+?)(?:Data\s+de\s+nascimento|Nome\s+da\s+m[aãä]e|\n|$)/);
-  if (mNome) {
-    dados.nome = mNome[1].trim().replace(/\s+/g, ' ');
-  }
+  if (mNome) dados.nome = mNome[1].trim().replace(/\s+/g, ' ');
 
-  // 2) VÍNCULOS — estratégia A: linha-por-linha
-  const tiposFiliado = [
-    'Empregado ou Agente Público', 'Empregado Doméstico', 'Trabalhador Avulso',
-    'Contribuinte Individual', 'Facultativo', 'Microempreendedor Individual',
-    'Segurado Especial', 'Empregado ou Agente', 'Público'
-  ];
+  const anoMax = new Date().getFullYear() + 1;
 
-  const linhas = texto.split('\n');
-  linhas.forEach(linhaRaw => {
-    let linha = linhaRaw;
-    tiposFiliado.forEach(t => { linha = linha.replace(t, ''); });
-    linha = linha.replace(/\s+/g, ' ').trim();
-    if (!linha) return;
+  for (const linhaRaw of texto.split('\n')) {
+    const linha = linhaRaw.replace(/\s+/g, ' ').trim();
+    if (!linha) continue;
 
-    const datas = linha.match(/\d{2}\/\d{2}\/\d{4}/g);
-    if (!datas || datas.length < 2) return;
+    // Toda relação previdenciária começa com: Seq + NIT
+    const mCab = linha.match(/^(\d{1,3})\s+(\d{3}\.\d{5}\.\d{2}-\d|\d[\d.\-\/]{6,})\s+(.*)$/);
+    if (!mCab) continue;
+    const resto = mCab[3];
 
-    // Padrão flexível: SEQ + (1 ou 2 códigos numéricos) + EMPREGADOR + DATAS
-    // Em alguns CNIS o NIT está na mesma linha (2 códigos antes do empregador),
-    // em outros está em linha separada (apenas 1 código antes do empregador)
-    let mInicio = linha.match(/^(\d{1,3})\s+([\d\.\-\/]+)\s+([\d\.\-\/]+)\s+(.+)$/);
-    let resto;
-    if (mInicio) {
-      // Verificar se o terceiro grupo é um código (só números/pontos/barras) — se for, é o caso NIT+Cód
-      // Se o terceiro grupo já começar com letra, é o caso de apenas Seq + 1 código + empregador
-      const terceiro = mInicio[3];
-      if (/^[A-ZÁÉÍÓÚÇ]/.test(terceiro)) {
-        // Caso: SEQ + 1 código + empregador...
-        resto = terceiro + ' ' + mInicio[4];
-      } else {
-        resto = mInicio[4];
-      }
-    } else {
-      // Tentar padrão com 1 código apenas: SEQ + CÓDIGO + EMPREGADOR
-      mInicio = linha.match(/^(\d{1,3})\s+([\d\.\-\/]+)\s+(.+)$/);
-      if (!mInicio) return;
-      resto = mInicio[3];
-    }
+    const datas = resto.match(/\b\d{2}\/\d{2}\/\d{4}\b/g) || [];
+    if (!datas.length) continue;
 
-    const mResto = resto.match(/^(.+?)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})(?:\s+(\d{2}\/\d{4}))?\s*$/);
-    if (!mResto) return;
+    const ano = parseInt(datas[0].split('/')[2], 10);
+    if (ano < 1950 || ano > anoMax) continue;
 
-    const empregadorEMatricula = mResto[1];
-    const dtIni = mResto[2];
-    const dtFim = mResto[3];
-
-    // Empregador deve ter pelo menos uma letra
-    if (!/[A-Za-zÁ-Úá-ú]/.test(empregadorEMatricula)) return;
-
-    let empregador, matricula = '';
-    const mMat = empregadorEMatricula.match(/^(.+?)\s+(\d{3,})$/);
-    if (mMat) { empregador = mMat[1]; matricula = mMat[2]; }
-    else { empregador = empregadorEMatricula; }
-
-    const ano = parseInt(dtIni.split('/')[2]);
-    if (ano < 1950 || ano > new Date().getFullYear() + 1) return;
-
-    let tipo = 'empregado';
-    if (linhaRaw.includes('Contribuinte Individual')) tipo = 'ci';
-    else if (linhaRaw.includes('Facultativo')) tipo = 'facultativo';
-    else if (linhaRaw.includes('Microempreendedor')) tipo = 'mei';
-    else if (linhaRaw.includes('Doméstico') || linhaRaw.includes('Domestico')) tipo = 'domestica';
-
-    dados.vinculos.push({ empregador: empregador.trim(), inicio: dtIni, fim: dtFim, tipo });
-  });
-
-  // 3) ESTRATÉGIA B (fallback): se nenhum vínculo foi encontrado, buscar
-  // padrões "DATA_INÍCIO DATA_FIM ÚLT_REMUN" em qualquer posição do texto,
-  // retroagindo para identificar o empregador
-  if (dados.vinculos.length === 0) {
-    // Texto plano normalizado (sem quebras de linha)
-    const textoPlano = texto.replace(/\s+/g, ' ');
-    // Padrão: "EMPREGADOR ... DD/MM/AAAA DD/MM/AAAA MM/AAAA"
-    // Empregador é tudo que vem antes (até 100 chars), pegando palavras em CAIXA ALTA
-    const re = /(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{4})/g;
-    let m;
-    while ((m = re.exec(textoPlano)) !== null) {
-      const dtIni = m[1], dtFim = m[2];
-      const ano = parseInt(dtIni.split('/')[2]);
-      if (ano < 1950 || ano > new Date().getFullYear() + 1) continue;
-
-      // Buscar empregador no texto anterior (até 200 chars antes)
-      const inicio = Math.max(0, m.index - 200);
-      const trechoAntes = textoPlano.substring(inicio, m.index);
-      // Pegar a última sequência de palavras em CAIXA ALTA (provavelmente o nome da empresa)
-      const empMatch = trechoAntes.match(/([A-ZÁÉÍÓÚÇÑ][A-ZÁÉÍÓÚÇÑ\s\&\-\.0-9]{4,})\s*(?:\d{3,}\s*)?$/);
-      let empregador = empMatch ? empMatch[1].trim() : 'Vínculo (CNIS)';
-      // Limpar termos que não são empregador
-      empregador = empregador.replace(/^(Empregado ou Agente|Empregado Doméstico|Contribuinte Individual|Facultativo|Microempreendedor Individual|Público)\s*/i, '');
-      empregador = empregador.replace(/\s+(Empregado|Público|LTDA)\s*$/, ' LTDA').trim();
-      // Se ainda for muito curto ou só números, usar genérico
-      if (empregador.length < 4 || /^[\d\s\.\/\-]+$/.test(empregador)) {
-        empregador = 'Vínculo extraído do CNIS';
-      }
-
+    // ---- BLOCO BENEFÍCIO -------------------------------------------
+    // Seq | NIT | NB | "Benefício" | "NN - DESCRIÇÃO" | DIB | DCB | Situação
+    const mBen = resto.match(
+      /^(\d{6,})\s+Benef[ií]cio\s+(\d{2,3})\s*-\s*(.+?)\s+(\d{2}\/\d{2}\/\d{4})(?:\s+(\d{2}\/\d{2}\/\d{4}))?\s*(.*)$/i
+    );
+    if (mBen) {
+      const [, nb, especie, descricao, dib, dcb, situacao] = mBen;
+      const ativo = !dcb || /ATIVO|EM MANUTEN/i.test(situacao || '');
       dados.vinculos.push({
-        empregador: empregador.substring(0, 80),
-        inicio: dtIni,
-        fim: dtFim,
-        tipo: 'empregado'
+        empregador: `NB ${nb} — ${descricao.trim()} (esp. ${especie})`,
+        inicio: dib,
+        fim: ativo ? 'EM ABERTO' : dcb,
+        tipo: 'beneficio',
+        especie: especie,
+        situacao: (situacao || '').trim()
       });
+      continue;
     }
+
+    // ---- BLOCO VÍNCULO / RECOLHIMENTO -------------------------------
+    let tipo = 'empregado';
+    for (const t of TIPOS_FILIADO_CNIS) { if (t.re.test(resto)) { tipo = t.tipo; break; } }
+
+    let cabeca = resto.substring(0, resto.indexOf(datas[0]));
+    TIPOS_FILIADO_CNIS.forEach(t => { cabeca = cabeca.replace(t.re, ''); });
+    cabeca = cabeca.replace(/\b\d{6,}\b/g, '').replace(/\s+/g, ' ').trim();
+    if (!/[A-Za-zÁ-Úá-ú]/.test(cabeca)) cabeca = 'Vínculo (CNIS)';
+
+    dados.vinculos.push({
+      empregador: cabeca.substring(0, 80),
+      inicio: datas[0],
+      fim: datas[1] || 'EM ABERTO',
+      tipo: tipo,
+      especie: null
+    });
   }
 
   // Dedup por (inicio, fim, empregador)
   const vistos = new Set();
   dados.vinculos = dados.vinculos.filter(v => {
-    const key = `${v.inicio}|${v.fim}|${v.empregador}`;
-    if (vistos.has(key)) return false;
-    vistos.add(key);
-    return true;
+    const k = `${v.inicio}|${v.fim}|${v.empregador}`;
+    if (vistos.has(k)) return false;
+    vistos.add(k); return true;
   });
 
   return dados;
@@ -1927,7 +1961,7 @@ function obterPlanosContribuicao(categoria) {
   // Define quais planos fazem sentido propor para cada categoria
   const planos = [];
 
-  if (['individual', 'facultativa', 'desempregada'].includes(categoria)) {
+  if (['individual', 'facultativa', 'desempregada', 'beneficio'].includes(categoria)) {
     // Plano simplificado (mais comum) — 11% sobre SM
     planos.push({
       nome: 'Plano Simplificado (11%)',
@@ -1991,7 +2025,11 @@ function coletarVinculos() {
     const emAberto = fimRaw === '' || /^(EM ABERTO|ABERTO)$/i.test(fimRaw);
     const fim = emAberto ? new Date() : (parseDate(fimRaw) || new Date());
     const tipo = row.querySelector('.v-tipo')?.value || 'empregado';
-    if (inicio) lista.push({ empregador: emp, inicio, fim, emAberto, meses: diffMeses(inicio, fim), tipo });
+    const especie = tipo === 'beneficio' ? (row.querySelector('.v-especie')?.value || '80') : null;
+    // Auxílio-acidente (36/94) e BPC/LOAS (87/88) não geram qualidade de segurada
+    // — art. 15, I, in fine, da Lei 8.213/91; BPC é assistencial.
+    const mantemQualidade = tipo !== 'beneficio' || !ESPECIES_SEM_QUALIDADE.has(String(especie));
+    if (inicio) lista.push({ empregador: emp, inicio, fim, emAberto, meses: diffMeses(inicio, fim), tipo, especie, mantemQualidade });
   });
   return lista.sort((a, b) => a.inicio - b.inicio);
 }
@@ -2003,10 +2041,23 @@ function coletarVinculos() {
 // § 4º: a perda da qualidade só ocorre no dia seguinte ao término do prazo de
 // recolhimento da contribuição do mês seguinte ao final do período — ou seja,
 // no dia 16 do 2º mês seguinte. A qualidade fica mantida até o dia 15 desse mês.
-function calcularPeriodoDeGraca(dataUltimoVinculo, tinha120, desempregoInvol, categoria) {
+// categoriaAnterior: quando a última situação previdenciária foi o GOZO DE
+// BENEFÍCIO, informa a categoria em que a segurada estava filiada antes dele.
+// Serve apenas para acionar o alerta de controvérsia (facultativa -> benefício).
+function calcularPeriodoDeGraca(dataUltimoVinculo, tinha120, desempregoInvol, categoria, categoriaAnterior) {
+  // Art. 15, I: o gozo de benefício mantém a qualidade sem limite de prazo.
+  // Cessado o benefício, corre o prazo do art. 15, II — 12 meses, contados da
+  // DCB. O prazo reduzido de 6 meses do inciso VI é exclusivo de quem cessou
+  // CONTRIBUIÇÕES na condição de facultativa; quem passou a receber benefício
+  // não está nessa situação (é o que o próprio INSS divulga: "após auxílio por
+  // incapacidade ou salário-maternidade: até 12 meses").
+  const ehBeneficio = categoria === 'beneficio';
   const ehFacultativa = categoria === 'facultativa';
   let meses = ehFacultativa ? 6 : 12;
   const prorrogacoes = [];
+  // Ponto controvertido: facultativa que passou a receber benefício. Aqui se
+  // adota 12 meses (art. 15, II), sinalizando a divergência para conferência.
+  const controversiaFacultativaBeneficio = ehBeneficio && categoriaAnterior === 'facultativa';
   if (!ehFacultativa) {
     if (tinha120) { meses += 12; prorrogacoes.push('+12 meses — 120+ contribuições (art. 15, § 1º)'); }
     if (desempregoInvol) { meses += 12; prorrogacoes.push('+12 meses — desemprego involuntário (art. 15, § 2º)'); }
@@ -2014,14 +2065,27 @@ function calcularPeriodoDeGraca(dataUltimoVinculo, tinha120, desempregoInvol, ca
   const termo = addMeses(dataUltimoVinculo, meses);
   const fimGraca = new Date(termo.getFullYear(), termo.getMonth() + 2, 15);
   return {
-    meses, termo, fimGraca, prorrogacoes,
+    meses, termo, fimGraca, prorrogacoes, ehBeneficio,
+    controversiaFacultativaBeneficio,
     facultativaSemProrrogacao: ehFacultativa && (tinha120 || desempregoInvol)
   };
+}
+
+// Conta competências que valem como CARÊNCIA.
+// O salário-maternidade é salário de contribuição (art. 28, § 2º, Lei 8.212/91)
+// e o período de gozo conta como tempo de contribuição e carência. Os demais
+// benefícios (auxílio-doença etc.) só contam se intercalados com contribuição
+// (art. 29, § 5º), hipótese que exige conferência humana — por isso não são
+// somados automaticamente aqui.
+function contaCarencia(v) {
+  if (v.tipo !== 'beneficio') return true;
+  return ESPECIES_CONTAM_CARENCIA.has(String(v.especie || ''));
 }
 
 function totalContribuicoes(vinculos, dataParto) {
   let total = 0;
   vinculos.forEach(v => {
+    if (!contaCarencia(v)) return;
     const fimEfetivo = v.fim > dataParto ? dataParto : v.fim;
     if (v.inicio <= dataParto) total += diffMeses(v.inicio, fimEfetivo);
   });
@@ -2031,6 +2095,7 @@ function totalContribuicoes(vinculos, dataParto) {
 function contribuicoesAposPerda(vinculos, fimGraca, dataParto) {
   let total = 0;
   vinculos.forEach(v => {
+    if (!contaCarencia(v)) return;
     if (v.inicio > fimGraca && v.inicio <= dataParto) {
       const fimEfetivo = v.fim > dataParto ? dataParto : v.fim;
       total += diffMeses(v.inicio, fimEfetivo);
@@ -2041,7 +2106,9 @@ function contribuicoesAposPerda(vinculos, fimGraca, dataParto) {
 
 function temVinculoAtivoNoParto(vinculos, dataParto) {
   // Vínculo em aberto permanece ativo em qualquer data futura do fato gerador.
-  return vinculos.some(v => v.inicio <= dataParto && (v.emAberto || v.fim >= dataParto));
+  // Benefício que não mantém qualidade (auxílio-acidente, BPC) não conta aqui.
+  return vinculos.some(v => v.mantemQualidade !== false
+    && v.inicio <= dataParto && (v.emAberto || v.fim >= dataParto));
 }
 
 function analisar() {
@@ -2054,6 +2121,24 @@ function analisar() {
 
   const fatoGerador = $('#fato_gerador').value;
   const vinculos = coletarVinculos();
+
+  // Invalida o resultado anterior. Sem isto, uma análise interrompida por
+  // validação deixava __analiseAtual preenchido com o caso ANTERIOR — e os
+  // PDFs sairiam com os dados de outra cliente.
+  window.__analiseAtual = null;
+
+  // BARREIRA: sem histórico não há parecer possível sobre qualidade de segurada.
+  // Foi por este caminho que a ferramenta emitiu parecer conclusivo de ausência
+  // de qualidade quando o parser, na verdade, não havia lido o CNIS.
+  if (vinculos.length === 0 && categoria !== 'especial') {
+    alert('ANÁLISE BLOQUEADA — NENHUM VÍNCULO OU BENEFÍCIO INFORMADO\n\n' +
+      'Sem histórico contributivo não é possível emitir parecer sobre qualidade de segurada.\n\n' +
+      'Se o CNIS foi enviado e nada foi extraído, o layout do PDF pode estar fora do padrão ' +
+      'mapeado: abra a aba "Digitação Manual" e lance os vínculos E OS BENEFÍCIOS que constam ' +
+      'do extrato (inclusive salário-maternidade, auxílio-doença e pensão — o período de gozo ' +
+      'mantém a qualidade de segurada, art. 15, I, da Lei 8.213/91).');
+    return;
+  }
 
   // Barreira de segurança: parto já ocorrido, categoria de segurada obrigatória
   // declarada, mas nenhum vínculo ativo naquela data. É o erro que mais
@@ -2123,6 +2208,31 @@ function analisarQualidadeSegurada(categoria, vinculos, dataParto) {
     return resultado;
   }
 
+  // Categoria na data do parto = recebendo benefício do INSS.
+  // Art. 15, I: mantém a qualidade independentemente de contribuições, exceto
+  // auxílio-acidente. BPC/LOAS é assistencial e não gera qualidade.
+  if (categoria === 'beneficio') {
+    const esp = String($('#especie_beneficio')?.value || '80');
+    const rotulo = ESPECIES_LABEL[esp] || `espécie ${esp}`;
+    if (ESPECIES_SEM_QUALIDADE.has(esp)) {
+      resultado.motivo = `O benefício informado (${esp} — ${rotulo}) NÃO mantém a qualidade de `
+        + `segurada. O auxílio-acidente está expressamente excepcionado no art. 15, I, da Lei `
+        + `8.213/91, e o BPC/LOAS é benefício assistencial, não previdenciário. A análise deve `
+        + `ser refeita pelo período de graça do último vínculo contributivo.`;
+      return resultado;
+    }
+    resultado.temQualidade = true;
+    resultado.motivo = `Segurada em gozo de benefício (${esp} — ${rotulo}) na data do fato gerador. `
+      + `A qualidade de segurada é mantida independentemente de contribuições, por força do art. 15, `
+      + `I, da Lei 8.213/91 — não se cogita de período de graça enquanto durar o benefício.`;
+    if (!temVinculoAtivoNoParto(vinculos, dataParto)) {
+      resultado.alerta = 'Foi declarado gozo de benefício na data do parto, mas o histórico '
+        + 'informado não registra benefício vigente naquela data. Conferir a DCB antes de orientar '
+        + 'a cliente — se o benefício já havia cessado, a análise correta é a de período de graça.';
+    }
+    return resultado;
+  }
+
   if (categoria === 'especial') {
     const mesesRural = parseInt($('#meses_rural').value || '0');
     const prova = $('#prova_rural').value;
@@ -2155,20 +2265,49 @@ function analisarQualidadeSegurada(categoria, vinculos, dataParto) {
   // O período de graça corre da ÚLTIMA cessação de contribuições, isto é, do
   // vínculo de maior data de FIM — e não do de início mais recente. Vínculos
   // concomitantes e sobrepostos são rotina no CNIS.
-  const ultimoVinculo = vinculos.reduce((a, b) => (b.fim > a.fim ? b : a));
+  // Benefícios que não mantêm qualidade (auxílio-acidente, BPC) não podem servir
+  // de termo inicial do período de graça — art. 15, I, in fine.
+  const vinculosUteis = vinculos.filter(v => v.mantemQualidade !== false);
+  if (vinculosUteis.length === 0) {
+    resultado.motivo = 'O histórico informado contém apenas benefícios que não mantêm a qualidade '
+      + 'de segurada (auxílio-acidente ou BPC/LOAS). Sem vínculo ou contribuição aproveitável, não '
+      + 'há qualidade de segurada.';
+    resultado.contribFaltam = 1;
+    return resultado;
+  }
+  const ultimoVinculo = vinculosUteis.reduce((a, b) => (b.fim > a.fim ? b : a));
   const dataFimUltimo = ultimoVinculo.fim;
   const tinha120 = $('#tinha_120').value === 'sim';
   const desempregoInvol = $('#desemprego_involuntario').value === 'sim';
 
   // O prazo do art. 15 é definido pela filiação que CESSOU, não pela categoria
   // pretendida na data do parto.
-  const categoriaGraca = $('#categoria_ultimo_vinculo').value || categoria;
-  const graca = calcularPeriodoDeGraca(dataFimUltimo, tinha120, desempregoInvol, categoriaGraca);
+  const categoriaGraca = ultimoVinculo.tipo === 'beneficio'
+    ? 'beneficio'
+    : ($('#categoria_ultimo_vinculo').value || categoria);
+  // Categoria da filiação imediatamente anterior ao benefício — só para alerta.
+  const anteriorAoBeneficio = categoriaGraca === 'beneficio'
+    ? (() => {
+        const contributivos = vinculosUteis.filter(v => v.tipo !== 'beneficio' && v.fim <= ultimoVinculo.inicio);
+        if (!contributivos.length) return $('#categoria_ultimo_vinculo').value || null;
+        const ult = contributivos.reduce((a, b) => (b.fim > a.fim ? b : a));
+        return TIPO_PARA_CATEGORIA[ult.tipo] || null;
+      })()
+    : null;
+  const graca = calcularPeriodoDeGraca(dataFimUltimo, tinha120, desempregoInvol, categoriaGraca, anteriorAoBeneficio);
   resultado.fimGraca = graca.fimGraca;
   resultado.mesesGraca = graca.meses;
   resultado.termoGraca = graca.termo;
   resultado.categoriaGraca = categoriaGraca;
   resultado.dataFimUltimo = dataFimUltimo;
+  if (graca.controversiaFacultativaBeneficio) {
+    resultado.alerta = 'PONTO CONTROVERTIDO — conferir antes de orientar a cliente. A segurada era '
+      + 'FACULTATIVA e passou a receber benefício. Aqui se adotou o prazo de 12 meses do art. 15, II, '
+      + 'contado da cessação do benefício, que é o entendimento divulgado pelo próprio INSS. '
+      + 'Há corrente que sustenta a aplicação do prazo de 6 meses do art. 15, VI, por entender que o '
+      + 'prazo acompanha a categoria da filiação anterior. Se prevalecer essa segunda leitura, o '
+      + 'período de graça encerra-se antes da data aqui apontada.';
+  }
   if (graca.facultativaSemProrrogacao) {
     resultado.alerta = 'A última filiação foi como segurada facultativa: o prazo é de 6 meses (art. 15, VI) e as prorrogações dos §§ 1º e 2º não se aplicam, pois alcançam apenas o prazo do inciso II. As marcações de 120+ contribuições e de desemprego involuntário foram desconsideradas no cálculo.';
   }
@@ -2176,7 +2315,10 @@ function analisarQualidadeSegurada(categoria, vinculos, dataParto) {
   if (dataParto <= graca.fimGraca) {
     resultado.temQualidade = true;
     resultado.emPeriodoDeGraca = true;
-    resultado.motivo = `Em período de graça (art. 15 da Lei 8.213/91). Qualidade mantida até ${formatDate(graca.fimGraca)} — ${graca.meses} meses contados de ${formatDate(dataFimUltimo)} (termo em ${formatDate(graca.termo)}), acrescidos do prazo do art. 15, § 4º, que desloca a perda para o dia 16 do 2º mês seguinte.`;
+    const origemGraca = graca.ehBeneficio
+      ? `da CESSAÇÃO DO BENEFÍCIO em ${formatDate(dataFimUltimo)} (${ultimoVinculo.empregador}) — durante o gozo a qualidade já estava mantida pelo art. 15, I, independentemente de contribuições`
+      : `de ${formatDate(dataFimUltimo)}`;
+    resultado.motivo = `Em período de graça (art. 15 da Lei 8.213/91). Qualidade mantida até ${formatDate(graca.fimGraca)} — ${graca.meses} meses contados ${origemGraca} (termo em ${formatDate(graca.termo)}), acrescidos do prazo do art. 15, § 4º, que desloca a perda para o dia 16 do 2º mês seguinte.`;
   } else {
     resultado.motivo = `Período de graça expirou em ${formatDate(graca.fimGraca)} — ${graca.meses} meses contados de ${formatDate(dataFimUltimo)}, já computado o prazo do art. 15, § 4º. Perda da qualidade de segurada antes do fato gerador.`;
     resultado.contribAposPerda = contribuicoesAposPerda(vinculos, graca.fimGraca, dataParto);
@@ -2336,7 +2478,8 @@ function categoriaAmigavel(cat) {
     mei: 'MEI',
     facultativa: 'contribuinte facultativa',
     especial: 'segurada especial (rural)',
-    desempregada: 'desempregada (em período de graça)'
+    desempregada: 'desempregada (em período de graça)',
+    beneficio: 'em gozo de benefício do INSS'
   };
   return m[cat] || cat;
 }
@@ -2512,7 +2655,10 @@ function renderExplicacao(cenarioId, categoria, qualidade, dataParto, protetivo)
 
     if (qualidade.temQualidade) {
       if (qualidade.emPeriodoDeGraca) {
-        paragrafos.push(`<p>O último vínculo dela terminou em <strong>${formatDate(qualidade.dataFimUltimo)}</strong>. Depois disso, ela tem <span class="destaque">${qualidade.mesesGraca} meses de "período de graça"</span> (proteção automática do INSS), que vai até ${formatDate(qualidade.fimGraca)}. Como o parto está previsto para ${formatDate(dataParto)}, ela <strong>ainda está dentro dessa proteção</strong>.</p>`);
+        const origemTexto = qualidade.categoriaGraca === 'beneficio'
+          ? `O <strong>benefício que ela recebia do INSS cessou em ${formatDate(qualidade.dataFimUltimo)}</strong>. Enquanto recebia, a proteção era automática (art. 15, I). A partir da cessação`
+          : `O último vínculo dela terminou em <strong>${formatDate(qualidade.dataFimUltimo)}</strong>. Depois disso`;
+        paragrafos.push(`<p>${origemTexto}, ela tem <span class="destaque">${qualidade.mesesGraca} meses de "período de graça"</span> (proteção automática do INSS), que vai até ${formatDate(qualidade.fimGraca)}. Como o parto está previsto para ${formatDate(dataParto)}, ela <strong>ainda está dentro dessa proteção</strong>.</p>`);
       } else if (qualidade.contribAposPerda && qualidade.contribAposPerda >= 1) {
         paragrafos.push(`<p>Ela já tinha perdido a qualidade de segurada anteriormente, mas <strong>recuperou</strong> ao fazer ${qualidade.contribAposPerda} nova(s) contribuição(ões). Pela regra atual do STF, isso já basta para ter direito ao salário-maternidade.</p>`);
       } else {
@@ -3022,9 +3168,9 @@ function renderDetalhesTecnicos(categoria, qualidade, dataParto, contribTotal, d
   const fundamentos = [
     'CF/88, art. 7º, XVIII e art. 201, II — direito ao salário-maternidade.',
     'Lei 8.213/91, arts. 71 a 73 — disciplina geral do benefício.',
-    'STF, ADIs 2.110 e 2.111, Plenário, j. 21/03/2024, acórdão publicado em 24/05/2024 — declarada a inconstitucionalidade do art. 25, III da Lei 8.213/91 (exigência de carência).',
-    'IN PRES/INSS nº 188/2025 — regulamentação administrativa da isenção de carência (aplicação a requerimentos a partir de 05/04/2024).',
-    'Art. 15 da Lei 8.213/91 — período de graça e suas prorrogações (§ 1º e § 2º).',
+    'STF, ADIs 2.110 e 2.111, Tribunal Pleno, Rel. Min. Nunes Marques, j. 21/03/2024, acórdão publicado em 24/05/2024 — declarada a inconstitucionalidade do art. 25, III da Lei 8.213/91 (exigência de carência).',
+    'IN PRES/INSS nº 188, de 08/07/2025 — regulamentação administrativa da isenção de carência (aplicação a requerimentos formulados a partir de 05/04/2024 e aos pendentes de análise nessa data, independentemente da data do fato gerador).',
+    'Art. 15, I, da Lei 8.213/91 — o gozo de benefício mantém a qualidade de segurada independentemente de contribuições, exceto o auxílio-acidente; art. 15, II e §§ 1º, 2º e 4º — período de graça, prorrogações e deslocamento da perda.',
     'Art. 27-A da Lei 8.213/91 (redação da Lei 13.846/2019) — após perda da qualidade de segurada, exige 5 contribuições para reativar a contagem da carência anterior. A qualidade em si é recuperada com 1 contribuição.'
   ];
   if (categoria === 'especial') {
