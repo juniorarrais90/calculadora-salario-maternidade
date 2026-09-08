@@ -948,8 +948,9 @@
               <option value="especial">Segurada Especial (rural)</option>
               <option value="desempregada">Sem contribuição ativa (período de graça)</option>
               <option value="beneficio">Recebendo benefício do INSS na data do parto (art. 15, I)</option>
+              <option value="incerta">Não sei / em dúvida — analisar pelo histórico (conservador)</option>
             </select>
-            <div class="hint">Como a cliente vai estar na hora do nascimento (ou já está, se já nasceu).</div>
+            <div class="hint">Como a cliente vai estar na hora do nascimento (ou já está, se já nasceu). Em dúvida, escolha "Não sei": a análise não presume vínculo ativo nem dispensa de carência.</div>
             <div id="aviso_categoria_parto" class="aviso-categoria hidden"></div>
           </div>
 
@@ -1104,13 +1105,17 @@
   <footer>
     <strong>ARRAIS ADVOGADOS · OAB/MG 19.391</strong> · Ferramenta de uso interno · Não substitui análise jurídica individualizada<br>
     Base normativa: Lei 8.213/91 · Lei 8.212/91 · IN PRES/INSS 128/2022 · STF, ADIs 2.110 e 2.111 (Rel. Min. Nunes Marques) · IN PRES/INSS 188/2025<br>
-    <span style="opacity:0.6">v3.8.0 · setembro/2026</span>
+    <span style="opacity:0.6">v3.8.1 · setembro/2026</span>
   </footer>
 </div>
 
 <script>
 // =====================================================================
-// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.8.0
+// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.8.1
+// v3.8.1 (09/2026): categoria no parto "Não sei / em dúvida" (análise conservadora,
+//   sem presumir CLT nem dispensa de carência) e RESSALVA no veredicto quando há
+//   competência abaixo do piso dentro do vínculo ativo — deixa de sair
+//   "totalmente protegida" quando ainda é preciso complementar.
 // v3.8.0 (09/2026): competências abaixo do salário mínimo a partir de 11/2019
 //   (EC 103/2019, art. 19-E do Decreto 3.048/99) são lidas do CNIS, deixam de
 //   contar como contribuição válida e o resultado aponta se a complementação
@@ -1161,7 +1166,7 @@ $('#categoria').addEventListener('change', (e) => {
   if (e.isTrusted) categoriaPartoEditadaManualmente = true;
   const v = e.target.value;
   $('#campos_especial').classList.toggle('hidden', v !== 'especial');
-  $('#campos_desempregada').classList.toggle('hidden', v !== 'desempregada');
+  $('#campos_desempregada').classList.toggle('hidden', v !== 'desempregada' && v !== 'incerta');
   // Mostrar campo de plano apenas para individual/facultativa
   // (MEI sempre 5% = equipara-se ao simplificado, não precisa perguntar)
   const precisaPerguntar = ['individual', 'facultativa'].includes(v);
@@ -1262,7 +1267,8 @@ function inferirCategoriaNoParto() {
     mostrarAvisoCategoria('critico', '⚠ Preenchimento obrigatório — não deduzível do CNIS',
       `O parto está previsto para <strong>${formatDate(dataParto)}</strong>, data futura. O CNIS só registra o passado: ` +
       'como a cliente estará filiada no nascimento depende do que ela fizer daqui até lá. ' +
-      '<strong>Confirme com a cliente</strong> se ela seguirá contribuindo, se o vínculo se manterá ativo ou se estará em período de graça, e preencha o campo acima manualmente.');
+      '<strong>Confirme com a cliente</strong> se ela seguirá contribuindo, se o vínculo se manterá ativo ou se estará em período de graça, e preencha o campo acima manualmente. ' +
+      'Se não for possível confirmar, escolha <strong>"Não sei / em dúvida"</strong>: a análise sai conservadora, sem presumir vínculo CLT ativo nem dispensa de carência.');
     return;
   }
 
@@ -1927,6 +1933,45 @@ function tipoVinculoNaCompetencia(vinculos, ano, mes) {
   return inverso[cat] || 'empregado';
 }
 
+// Competências abaixo do piso que caem DENTRO de vínculo/recolhimento ativo no
+// fato gerador (ou em aberto). É a situação em que a ferramenta reconhece a
+// qualidade pela filiação em curso, mas o INSS aplica o art. 19-E: sem o
+// ajuste, a competência não mantém a qualidade nem conta carência. Serve para
+// a ressalva no veredicto — não muda o cenário.
+function competenciasAbaixoNoVinculoAtivo(vinculos, dataParto) {
+  if (!temDadosDePiso()) return [];
+  const ativos = vinculos.filter(v => v.tipo !== 'beneficio' && v.mantemQualidade !== false
+    && v.inicio <= dataParto && (v.emAberto || (v.fimOriginal || v.fim) >= dataParto));
+  if (!ativos.length) return [];
+  return window.__abaixoMinimoCNIS.filter(c => {
+    const inicioMes = new Date(c.ano, c.mes - 1, 1);
+    const fimMes = new Date(c.ano, c.mes, 0);
+    return ativos.some(v => v.inicio <= fimMes && (v.emAberto || (v.fimOriginal || v.fim) >= inicioMes));
+  });
+}
+
+// Última competência com remuneração lida no CNIS (referência para saber
+// até quando o extrato enxerga o vínculo em aberto).
+function ultimaCompetenciaLida() {
+  const m = window.__remuneracoesCNIS;
+  if (!m || !m.size) return null;
+  return [...m.keys()].sort().pop();
+}
+
+// Categoria em dúvida: até quando a filiação precisa durar para que o período
+// de graça ainda cubra o parto, caso ela cesse. Caminha mês a mês para trás a
+// partir do mês do parto e devolve o primeiro dia do mês mais antigo que ainda
+// cobre — ou null se nem cessando no mês do parto cobre (não ocorre na prática).
+function mesMinimoDeFiliacao(dataParto, tinha120, desempregoInvol, categoriaGraca) {
+  let ultimoOk = null;
+  for (let k = 0; k <= 36; k++) {
+    const d = new Date(dataParto.getFullYear(), dataParto.getMonth() - k, 1);
+    const g = calcularPeriodoDeGraca(d, tinha120, desempregoInvol, categoriaGraca, null);
+    if (g.fimGraca >= dataParto) ultimoOk = d; else break;
+  }
+  return ultimoOk;
+}
+
 function estimarCustoComplementacao(competencias, vinculos) {
   const plano = $('#plano_contribuicao')?.value || 'simplificado';
   let total = 0;
@@ -2457,12 +2502,16 @@ function analisar() {
       const cenarioSem = classificarCenario(ehDuploCenario, qualidadeAtual, cenarioProtetivo);
       const cenarioCom = classificarCenario(ehDuploCenario, qualidadeCom, protetivoCom);
       const custo = estimarCustoComplementacao(window.__abaixoMinimoCNIS, vinculos);
+      const ressalva = qualidadeAtual.ressalvaPiso || [];
+      const custoRessalva = ressalva.length ? estimarCustoComplementacao(ressalva, vinculos).total : 0;
       complementacao = {
         competencias: custo.itens, custoTotal: custo.total,
         cenarioSem, cenarioCom,
         qualidadeCom, contribTotalCom, protetivoCom,
         mudaVeredicto: cenarioSem !== cenarioCom,
         ganhaQualidade: !qualidadeAtual.temQualidade && qualidadeCom.temQualidade,
+        ressalva, custoRessalva,
+        ajusteRecomendado: ressalva.length > 0,
         reduzFaltantes: !!(cenarioProtetivo && protetivoCom && !cenarioProtetivo.isenta
           && (protetivoCom.faltam || 0) < (cenarioProtetivo.faltam || 0))
       };
@@ -2471,9 +2520,13 @@ function analisar() {
     }
   }
 
+  // Categoria usada só para o bloco financeiro quando a situação no parto é
+  // incerta: a alíquota de desconto segue a última filiação conhecida.
+  const categoriaFinanceira = categoria === 'incerta' ? (categoriaUltimoVinculo || 'individual') : categoria;
+
   // Armazenar dados globalmente para geração de PDFs
   window.__analiseAtual = {
-    categoria, categoriaUltimoVinculo, fatoGerador, dataParto, vinculos,
+    categoria, categoriaUltimoVinculo, categoriaFinanceira, fatoGerador, dataParto, vinculos,
     qualidade: qualidadeAtual, contribTotal,
     duplo: ehDuploCenario, protetivo: cenarioProtetivo,
     complementacao,
@@ -2513,6 +2566,11 @@ function analisarQualidadeSegurada(categoria, vinculos, dataParto) {
     if (!temVinculoAtivoNoParto(vinculos, dataParto)) {
       resultado.alerta = 'Categoria declarada como segurada obrigatória (CLT/doméstica/avulsa), mas o histórico informado não registra vínculo ativo na data do fato gerador. Conferir a categoria selecionada e a data de encerramento do último vínculo antes de orientar a cliente — se o vínculo já se encerrou, a análise correta é a de período de graça.';
     }
+    // RESSALVA DO PISO: a qualidade veio da filiação em curso, mas há competências
+    // abaixo do salário mínimo dentro desse vínculo. O INSS aplica o art. 19-E
+    // também à empregada — sem complementação, a competência não mantém a
+    // qualidade nem conta carência. Não derruba o veredicto; obriga ressalva.
+    resultado.ressalvaPiso = competenciasAbaixoNoVinculoAtivo(vinculos, dataParto);
     return resultado;
   }
 
@@ -2555,6 +2613,12 @@ function analisarQualidadeSegurada(categoria, vinculos, dataParto) {
     return resultado;
   }
 
+  // CATEGORIA EM DÚVIDA: a atendente não sabe como a segurada estará no parto.
+  // Não se presume filiação obrigatória (CLT) nem dispensa de carência: a
+  // análise segue o caminho genérico (vínculo em curso → qualidade CONDICIONADA
+  // à manutenção; senão, período de graça) e o cenário protetivo conta carência.
+  resultado.categoriaIncerta = categoria === 'incerta';
+
   const vinculoAtivo = temVinculoAtivoNoParto(vinculos, dataParto);
   if (vinculoAtivo) {
     resultado.temQualidade = true;
@@ -2562,6 +2626,20 @@ function analisarQualidadeSegurada(categoria, vinculos, dataParto) {
     resultado.motivo = emCurso && dataParto > new Date()
       ? 'Segurada com vínculo/contribuição em curso. Mantida a regularidade dos recolhimentos até o fato gerador, a qualidade de segurada estará preservada na data do parto — não se cogita de período de graça.'
       : 'Segurada com vínculo/contribuição ativa na data do fato gerador.';
+    resultado.ressalvaPiso = competenciasAbaixoNoVinculoAtivo(vinculos, dataParto);
+    if (resultado.categoriaIncerta && emCurso && dataParto > new Date()) {
+      // Qualidade condicionada: se a filiação cessar, até quando ela precisa
+      // ter durado para o período de graça ainda cobrir o parto?
+      resultado.condicional = true;
+      const ativo = vinculos.filter(v => v.emAberto && v.inicio <= dataParto).sort((a, b) => b.inicio - a.inicio)[0];
+      const catGraca = ativo && ativo.tipo === 'beneficio' ? 'beneficio' : (TIPO_PARA_CATEGORIA[ativo && ativo.tipo] || $('#categoria_ultimo_vinculo').value || 'individual');
+      resultado.mesMinimoFiliacao = mesMinimoDeFiliacao(dataParto, $('#tinha_120').value === 'sim', $('#desemprego_involuntario').value === 'sim', catGraca);
+      resultado.ultimaCompetenciaLida = ultimaCompetenciaLida();
+      resultado.motivo = 'Situação no parto em dúvida. Há vínculo/recolhimento em aberto no histórico: se mantido até o fato gerador, a qualidade estará preservada. '
+        + (resultado.mesMinimoFiliacao
+          ? `Se cessar antes, o período de graça só cobre o parto se a última contribuição válida for de ${String(resultado.mesMinimoFiliacao.getMonth() + 1).padStart(2, '0')}/${resultado.mesMinimoFiliacao.getFullYear()} em diante.`
+          : '');
+    }
     return resultado;
   }
 
@@ -2787,6 +2865,7 @@ function categoriaAmigavel(cat) {
     facultativa: 'contribuinte facultativa',
     especial: 'segurada especial (rural)',
     desempregada: 'desempregada (em período de graça)',
+    incerta: 'em situação ainda indefinida na data do parto (análise conservadora pelo histórico)',
     beneficio: 'em gozo de benefício do INSS'
   };
   return m[cat] || cat;
@@ -2845,6 +2924,16 @@ function renderComplementacao(comp, categoria, qualidade, protetivo, contribTota
       <strong>${comp.protetivoCom.faltam}</strong> contribuição(ões) em vez de <strong>${protetivo.faltam}</strong>,
       e as contribuições válidas sobem de ${contribTotal} para ${comp.contribTotalCom}. Custo estimado: <strong>${formatBRL(comp.custoTotal)}</strong>.
     </div>`;
+  } else if (comp.ajusteRecomendado) {
+    const labels = comp.ressalva.map(c => c.label).join(', ');
+    impacto = `<div class="impacto muda" style="border-left-color:var(--amber)">
+      <strong>⚠ COMPLEMENTAÇÃO RECOMENDADA ANTES DO REQUERIMENTO.</strong> A qualidade de segurada foi reconhecida pela filiação em curso, mas
+      ${comp.ressalva.length === 1 ? 'a competência' : 'as competências'} <strong>${labels}</strong> ${comp.ressalva.length === 1 ? 'está' : 'estão'} abaixo do piso
+      <strong>dentro do vínculo ativo</strong>. O INSS aplica o art. 19-E também à empregada: sem o ajuste, ${comp.ressalva.length === 1 ? 'essa competência não mantém' : 'essas competências não mantêm'} a qualidade nem
+      ${comp.ressalva.length === 1 ? 'conta' : 'contam'} carência, e o pedido pode ser indeferido por pendência PSC-MEN-SM-EC103.
+      Custo estimado só dessas: <strong>${formatBRL(comp.custoRessalva)}</strong>${comp.competencias.length > comp.ressalva.length ? ` (todas as ${comp.competencias.length}: ${formatBRL(comp.custoTotal)})` : ''}.
+      ${(qualidade.vinculosRecuados || []).length === 0 && ['empregada', 'domestica', 'avulsa'].includes(categoria) ? 'Vínculo com jornada parcial ou intermitente costuma repetir o padrão todo mês — orientar a cliente a acompanhar as competências seguintes.' : ''}
+    </div>`;
   } else {
     impacto = `<div class="impacto">
       <strong>Neste caso a complementação não altera o veredicto</strong> (${NOME_CENARIO[comp.cenarioSem]} com ou sem ela)
@@ -2896,21 +2985,23 @@ function renderizar(categoria, fatoGerador, dataParto, qualidade, contribTotal, 
 
   const cenarioId = classificarCenario(duplo, qualidade, protetivo);
 
-  renderResultadoFinal(cenarioId, dataParto);
+  const comp = window.__analiseAtual && window.__analiseAtual.complementacao;
+  renderResultadoFinal(cenarioId, dataParto, qualidade, comp);
   renderAlertaConsistencia(qualidade);
-  renderComplementacao(window.__analiseAtual && window.__analiseAtual.complementacao, categoria, qualidade, protetivo, contribTotal);
+  renderComplementacao(comp, categoria, qualidade, protetivo, contribTotal);
   renderAtencaoPosEleicao(cenarioId, dataParto);
   renderExplicacao(cenarioId, categoria, qualidade, dataParto, protetivo);
-  renderFinanceiro(cenarioId, categoria, fatoGerador, qualidade, protetivo, dataParto);
+  renderFinanceiro(cenarioId, (window.__analiseAtual && window.__analiseAtual.categoriaFinanceira) || categoria, fatoGerador, qualidade, protetivo, dataParto);
   renderPlanoAcao(cenarioId, categoria, qualidade, dataParto, protetivo);
   renderDetalhesTecnicos(categoria, qualidade, dataParto, contribTotal, duplo, protetivo, cenarioId);
 }
 
 // ====== BLOCO 1: VEREDICTO PRINCIPAL =========================================
-function renderResultadoFinal(cenarioId, dataParto) {
+function renderResultadoFinal(cenarioId, dataParto, qualidade, comp) {
   const nome = tituloFormalCliente();
   const iminente = partoIminente(dataParto);
   const dias = diasAteOParto(dataParto);
+  qualidade = qualidade || {};
 
   const cenarios = {
     'A': {
@@ -2951,7 +3042,31 @@ function renderResultadoFinal(cenarioId, dataParto) {
     }
   };
 
-  const c = cenarios[cenarioId];
+  const c = { ...cenarios[cenarioId] };
+
+  // RESSALVAS que não mudam o cenário, mas impedem o "totalmente protegida":
+  // (1) situação no parto em dúvida — qualidade condicionada à manutenção da
+  //     filiação; (2) competências abaixo do piso dentro do vínculo ativo.
+  const ressalvas = [];
+  if (qualidade.temQualidade && qualidade.categoriaIncerta) {
+    const mes = qualidade.mesMinimoFiliacao;
+    ressalvas.push(qualidade.condicional
+      ? `A situação de ${primeiroNome()} na data do parto <strong>ainda não está definida</strong>. O direito acima vale <strong>se ela mantiver a filiação (vínculo ou contribuição válida) até o parto</strong>`
+        + (mes ? `; se cessar antes, o período de graça só cobre o parto com contribuição válida de <strong>${String(mes.getMonth() + 1).padStart(2, '0')}/${mes.getFullYear()}</strong> em diante` : '')
+        + '. Confirmar com a cliente antes de fechar.'
+      : `A situação de ${primeiroNome()} na data do parto <strong>ainda não está definida</strong>; a análise foi feita de forma conservadora pelo histórico (sem presumir vínculo CLT ativo nem dispensa de carência). Confirmar com a cliente antes de fechar.`);
+  }
+  const rp = qualidade.ressalvaPiso || [];
+  if (qualidade.temQualidade && rp.length) {
+    const custo = comp && comp.custoRessalva ? ` (custo estimado ${formatBRL(comp.custoRessalva)})` : '';
+    ressalvas.push(`<strong>${rp.length} competência(s) abaixo do salário mínimo no vínculo atual</strong> (${rp.map(x => x.label).join(', ')}). Pela EC 103/2019 (art. 19-E), sem complementação essas competências não mantêm a qualidade nem contam carência — o INSS pode indeferir. <strong>Complementar antes de requerer</strong>${custo}. Veja o quadro amarelo abaixo.`);
+  }
+  if (ressalvas.length) {
+    if (cenarioId === 'C') c.titulo = `${nome} TEM direito e cumpre a carência antiga — COM RESSALVA`;
+    else if (cenarioId === 'A') c.titulo = `${nome} TEM direito ao salário-maternidade — COM RESSALVA`;
+    c.icone = c.icone + '⚠️';
+    c.subtitulo = ressalvas.map(r => `<span style="display:block;margin-top:6px">⚠ ${r}</span>`).join('');
+  }
 
   // Adicionar destaque de URGÊNCIA se parto iminente (menos de 30 dias)
   let avisoUrgencia = '';
@@ -3044,10 +3159,18 @@ function renderExplicacao(cenarioId, categoria, qualidade, dataParto, protetivo)
       paragrafos.push(`<p><strong>${pNome}</strong> é <span class="destaque">${catAmigavel}</span>. Para receber o salário-maternidade, ela precisaria comprovar atividade rural nos 10 meses antes do parto — e os dados informados ainda <strong>não atingem essa exigência</strong>.</p>`);
     }
   } else {
-    paragrafos.push(`<p><strong>${pNome}</strong> é <span class="destaque">${catAmigavel}</span>. Pela regra atual do STF, ela só precisa ter qualidade de segurada na data do parto — não há exigência de carência (10 contribuições) como antes.</p>`);
+    if (categoria === 'incerta') {
+      paragrafos.push(`<p>Ainda <strong>não se sabe como ${pNome} estará filiada na data do parto</strong>. Por isso a análise foi feita <span class="destaque">de forma conservadora, pelo histórico</span>: sem presumir vínculo CLT ativo e contando carência no cenário protetivo. Pela regra atual do STF, ela só precisa ter qualidade de segurada na data do parto.</p>`);
+    } else {
+      paragrafos.push(`<p><strong>${pNome}</strong> é <span class="destaque">${catAmigavel}</span>. Pela regra atual do STF, ela só precisa ter qualidade de segurada na data do parto — não há exigência de carência (10 contribuições) como antes.</p>`);
+    }
 
     if (qualidade.temQualidade) {
-      if (qualidade.emPeriodoDeGraca) {
+      if (qualidade.condicional) {
+        const mes = qualidade.mesMinimoFiliacao;
+        const ult = qualidade.ultimaCompetenciaLida;
+        paragrafos.push(`<p>O histórico mostra <strong>vínculo/contribuição em aberto</strong>${ult ? ` (última competência lida no CNIS: ${labelCompetencia(ult)})` : ''}. Se ela <strong>mantiver essa filiação até o parto</strong>, a qualidade está garantida. ${mes ? `Se a filiação cessar antes, o período de graça ainda cobre o parto desde que a última contribuição válida seja de <span class="destaque">${String(mes.getMonth() + 1).padStart(2, '0')}/${mes.getFullYear()}</span> em diante.` : ''}</p>`);
+      } else if (qualidade.emPeriodoDeGraca) {
         const origemTexto = qualidade.categoriaGraca === 'beneficio'
           ? `O <strong>benefício que ela recebia do INSS cessou em ${formatDate(qualidade.dataFimUltimo)}</strong>. Enquanto recebia, a proteção era automática (art. 15, I). A partir da cessação`
           : `O último vínculo dela terminou em <strong>${formatDate(qualidade.dataFimUltimo)}</strong>. Depois disso`;
@@ -3112,7 +3235,7 @@ function renderPlanoAcao(cenarioId, categoria, qualidade, dataParto, protetivo) 
 
     secoes.push(`
       <div class="secao-acao">
-        <div class="secao-titulo"><span class="icone-sec">📋</span> Plano de ação — caso simples, direito reconhecido</div>
+        <div class="secao-titulo"><span class="icone-sec">📋</span> Plano de ação — ${(qualidade.ressalvaPiso || []).length || qualidade.categoriaIncerta ? 'direito reconhecido com ressalva' : 'caso simples, direito reconhecido'}</div>
         <ol>${acoes.join('')}</ol>
       </div>
     `);
@@ -3172,7 +3295,7 @@ function renderPlanoAcao(cenarioId, categoria, qualidade, dataParto, protetivo) 
     acoes.push(`<li><strong>Em caso de indeferimento</strong>, ajuizar ação com tutela de urgência fundamentada nas ADIs 2.110 e 2.111 do STF.</li>`);
     secoes.push(`
       <div class="secao-acao">
-        <div class="secao-titulo"><span class="icone-sec">🛡️</span> Plano de ação — caso totalmente protegido</div>
+        <div class="secao-titulo"><span class="icone-sec">🛡️</span> Plano de ação — ${(qualidade.ressalvaPiso || []).length || qualidade.categoriaIncerta ? 'carência antiga cumprida, com ressalva' : 'caso totalmente protegido'}</div>
         <ol>${acoes.join('')}</ol>
       </div>
     `);
@@ -3304,11 +3427,35 @@ function renderPlanoAcao(cenarioId, categoria, qualidade, dataParto, protetivo) 
   // SEÇÃO ADICIONAL: COMPLEMENTAÇÃO DE COMPETÊNCIAS ABAIXO DO MÍNIMO
   // ===========================================================
   const vinculos = coletarVinculos();
+
+  // ===========================================================
+  // SITUAÇÃO NO PARTO EM DÚVIDA — vale para qualquer cenário
+  // ===========================================================
+  if (categoria === 'incerta' && qualidade.temQualidade) {
+    const mes = qualidade.mesMinimoFiliacao;
+    secoes.unshift(`
+      <div class="secao-acao">
+        <div class="secao-titulo"><span class="icone-sec">❓</span> Situação no parto ainda indefinida</div>
+        <ol>
+          <li><strong>Confirmar com a cliente como estará no parto:</strong> se o vínculo/recolhimento se mantiver, o direito está garantido. Se houver risco de cessar, ${mes ? `garantir contribuição válida (no piso ou acima) pelo menos até <strong>${String(mes.getMonth() + 1).padStart(2, '0')}/${mes.getFullYear()}</strong>` : 'orientar contribuição válida até o parto'}.</li>
+          <li>Depois de confirmada a situação, <strong>refazer a análise com a categoria correta</strong> — esta saída é a leitura conservadora do histórico, sem presumir CLT ativa nem dispensa de carência.</li>
+        </ol>
+      </div>
+    `);
+  }
+
   const comp = window.__analiseAtual && window.__analiseAtual.complementacao;
   if (comp && comp.competencias.length > 0) {
     const lista = comp.competencias.map(c => `${c.label} (falta ${formatBRL(c.diferenca)})`).join('; ');
     const acoes = [];
-    if (comp.mudaVeredicto || comp.ganhaQualidade || comp.reduzFaltantes) {
+    if (comp.ajusteRecomendado && !(comp.mudaVeredicto || comp.ganhaQualidade)) {
+      acoes.push(`<li><strong>Complementar antes de protocolar</strong> as competências ${comp.ressalva.map(c => `${c.label} (falta ${formatBRL(c.diferenca)})`).join('; ')} — estão dentro do vínculo ativo e o INSS pode indeferir por pendência PSC-MEN-SM-EC103. Código 1872, custo estimado <strong>${formatBRL(comp.custoRessalva)}</strong>.</li>`);
+      acoes.push(`<li>Antes de pagar, verificar se há mês <strong>acima do piso no mesmo ano civil</strong> para utilizar o excedente ou agrupar (sem desembolso) — art. 19-E, § 1º, II e III.</li>`);
+      acoes.push(`<li>Após o processamento do ajuste, <strong>emitir novo CNIS</strong> e conferir que o indicador sumiu antes de protocolar.</li>`);
+      if (comp.competencias.length > comp.ressalva.length) {
+        acoes.push(`<li>As demais competências abaixo do piso (${comp.competencias.filter(c => !comp.ressalva.some(r => r.chave === c.chave)).map(c => c.label).join(', ')}) não afetam este pedido, mas valem para carência e tempo futuros — serviço acessório (custo total de todas: ${formatBRL(comp.custoTotal)}).</li>`);
+      }
+    } else if (comp.mudaVeredicto || comp.ganhaQualidade || comp.reduzFaltantes) {
       acoes.push(`<li><strong>Orientar a complementação</strong> das competências ${lista} — código 1872, custo estimado <strong>${formatBRL(comp.custoTotal)}</strong>. ${comp.mudaVeredicto || comp.ganhaQualidade ? 'É o que viabiliza o direito neste caso (veja o quadro amarelo acima).' : 'Reduz o que falta para a blindagem.'}</li>`);
       acoes.push(`<li>Antes de pagar, verificar se há mês <strong>acima do piso no mesmo ano civil</strong> para utilizar o excedente ou agrupar (sem desembolso) — art. 19-E, § 1º, II e III.</li>`);
       acoes.push(`<li>Após o processamento do ajuste (irreversível, § 2º), <strong>emitir novo CNIS</strong> e refazer esta análise antes de protocolar.</li>`);
@@ -3812,7 +3959,8 @@ function gerarPDFInterno() {
   const categoriaLabel = {
     'empregada': 'Empregada CLT', 'domestica': 'Doméstica', 'avulsa': 'Avulsa',
     'individual': 'Contribuinte Individual', 'facultativa': 'Facultativa',
-    'mei': 'MEI', 'especial': 'Segurada Especial', 'desempregada': 'Desempregada (período de graça)'
+    'mei': 'MEI', 'especial': 'Segurada Especial', 'desempregada': 'Desempregada (período de graça)',
+    'beneficio': 'Em gozo de benefício do INSS', 'incerta': 'Situação no parto indefinida (análise conservadora)'
   }[a.categoria] || a.categoria;
 
   const cabecalho = `
