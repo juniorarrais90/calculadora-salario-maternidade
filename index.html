@@ -502,6 +502,43 @@
     line-height: 1.55;
     margin: 0;
   }
+  /* Competências abaixo do salário mínimo — EC 103/2019 (v3.8) */
+  .bloco-complementacao {
+    background: var(--amber-soft);
+    border: 2px solid var(--amber);
+    border-left: 6px solid var(--amber);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .bloco-complementacao .titulo-alerta {
+    font-size: 13px; font-weight: bold; color: var(--amber);
+    margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .bloco-complementacao p { margin: 6px 0; }
+  .bloco-complementacao .impacto {
+    margin: 10px 0; padding: 10px 12px; border-radius: 6px;
+    background: rgba(255,255,255,0.7); border-left: 4px solid var(--navy);
+  }
+  .bloco-complementacao .impacto.muda { border-left-color: var(--green); }
+  .bloco-complementacao table.tabela-piso {
+    width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12px; background: white;
+  }
+  .bloco-complementacao table.tabela-piso th,
+  .bloco-complementacao table.tabela-piso td {
+    padding: 5px 8px; border-bottom: 1px solid var(--gray-2); text-align: right;
+  }
+  .bloco-complementacao table.tabela-piso th { background: var(--gray-1); color: var(--navy); font-size: 11px; text-transform: uppercase; }
+  .bloco-complementacao table.tabela-piso th:first-child,
+  .bloco-complementacao table.tabela-piso td:first-child { text-align: left; }
+  .bloco-complementacao .indicador { font-family: monospace; font-size: 10.5px; color: #b3261e; }
+  .bloco-complementacao ul { padding-left: 20px; margin: 6px 0; }
+  .extracted-competencia {
+    padding: 6px 12px; background: var(--amber-soft); border-left: 3px solid var(--amber);
+    border-radius: 3px; margin-bottom: 4px; font-size: 12px;
+  }
   .aviso-categoria {
     margin-top: 8px;
     padding: 10px 12px;
@@ -1047,6 +1084,7 @@
       <div class="panel">
         <div id="resultado-final-container"></div>
         <div id="alerta-consistencia-container"></div>
+        <div id="complementacao-container"></div>
         <div id="atencao-container"></div>
         <div id="explicacao-container"></div>
         <div id="plano-acao-container"></div>
@@ -1066,13 +1104,17 @@
   <footer>
     <strong>ARRAIS ADVOGADOS · OAB/MG 19.391</strong> · Ferramenta de uso interno · Não substitui análise jurídica individualizada<br>
     Base normativa: Lei 8.213/91 · Lei 8.212/91 · IN PRES/INSS 128/2022 · STF, ADIs 2.110 e 2.111 (Rel. Min. Nunes Marques) · IN PRES/INSS 188/2025<br>
-    <span style="opacity:0.6">v3.7.1 · agosto/2026</span>
+    <span style="opacity:0.6">v3.8.0 · setembro/2026</span>
   </footer>
 </div>
 
 <script>
 // =====================================================================
-// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.7.1
+// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.8.0
+// v3.8.0 (09/2026): competências abaixo do salário mínimo a partir de 11/2019
+//   (EC 103/2019, art. 19-E do Decreto 3.048/99) são lidas do CNIS, deixam de
+//   contar como contribuição válida e o resultado aponta se a complementação
+//   viabiliza o direito.
 // Lógica jurídica:
 // - ADIs 2.110 e 2.111 (STF, j. 21/03/2024, ac. publ. 24/05/2024)
 // - IN 188/2025: isenção aplicada a requerimentos a partir de 05/04/2024
@@ -1408,6 +1450,13 @@ async function processarCNIS(file) {
     const dados = parseCNIS(textoCompleto);
     console.log('Nome extraído:', dados.nome);
     console.log('Vínculos extraídos:', dados.vinculos.length, dados.vinculos);
+
+    // Remunerações por competência — base para a regra do piso (EC 103/2019).
+    // Sempre recomeça do zero: dado de um CNIS anterior não pode contaminar o próximo.
+    window.__remuneracoesCNIS = parseRemuneracoesCNIS(textoCompleto);
+    window.__abaixoMinimoCNIS = calcularCompetenciasAbaixoMinimo(window.__remuneracoesCNIS);
+    console.log('Competências com remuneração lidas:', window.__remuneracoesCNIS.size);
+    console.log('Competências abaixo do piso (EC 103):', window.__abaixoMinimoCNIS);
     console.groupEnd();
 
     if (dados.nome) {
@@ -1454,7 +1503,7 @@ async function processarCNIS(file) {
             <strong>${v.empregador || '(empregador não identificado)'}</strong> ·
             ${v.inicio} → ${v.fim || 'em aberto'} · ${tipoLabel(v.tipo)}
           </div>
-        `).join('');
+        `).join('') + resumoCompetenciasAbaixoMinimo();
     } else {
       status.className = 'cnis-status warn';
       const amostra = textoCompleto.substring(0, 800).replace(/</g, '&lt;');
@@ -1697,6 +1746,221 @@ function parseCNIS(texto) {
 }
 
 // ====================================================================
+// REMUNERAÇÕES POR COMPETÊNCIA — REGRA DO PISO (EC 103/2019) — v3.8
+// ====================================================================
+// Art. 195, § 14, CF (EC 103/2019) e art. 19-E do Decreto 3.048/99: a partir
+// de 13/11/2019, só conta para aquisição e MANUTENÇÃO da qualidade de
+// segurada, carência e tempo de contribuição a competência cujo salário de
+// contribuição (somatório do mês) atinja o salário mínimo. A competência
+// abaixo do piso não vale nada enquanto não for COMPLEMENTADA (a qualquer
+// tempo), ou não receber excedente de outra / for AGRUPADA (só no mesmo ano
+// civil). O próprio CNIS marca essas competências com PSC-MEN-SM-EC103 /
+// PREC-MENOR-MIN.
+//
+// Antes desta versão a ferramenta contava essas competências como válidas.
+
+// Salário mínimo vigente na competência (piso do salário de contribuição).
+// Devolve null antes de 11/2019 — a regra não alcança competências anteriores.
+// ATUALIZAR a cada reajuste (janeiro).
+function salarioMinimoDaCompetencia(ano, mes) {
+  if (ano < 2019 || (ano === 2019 && mes < 11)) return null;
+  if (ano === 2019) return 998.00;
+  if (ano === 2020) return mes === 1 ? 1039.00 : 1045.00;
+  if (ano === 2021) return 1100.00;
+  if (ano === 2022) return 1212.00;
+  if (ano === 2023) return mes <= 4 ? 1302.00 : 1320.00;
+  if (ano === 2024) return 1412.00;
+  if (ano === 2025) return 1518.00;
+  return SALARIO_MINIMO_2026;
+}
+
+function chaveCompetencia(ano, mes) {
+  return `${ano}-${String(mes).padStart(2, '0')}`;
+}
+
+function labelCompetencia(chave) {
+  const [ano, mes] = chave.split('-');
+  return `${mes}/${ano}`;
+}
+
+function valorBRparaNumero(s) {
+  return parseFloat(String(s).replace(/\./g, '').replace(',', '.'));
+}
+
+// Lê, em todo o texto do extrato, os pares "MM/AAAA valor" dos blocos de
+// Remunerações (empregado: Competência | Remuneração | Indicadores) e de
+// Contribuições (CI/facultativo: Competência | Data Pgto | Contribuição |
+// Salário de Contribuição | Indicadores). Nos blocos de CI o valor que
+// interessa é o ÚLTIMO (salário de contribuição). Competências repetidas em
+// vínculos concomitantes são SOMADAS — é o somatório do mês que se compara
+// ao piso. A tabela "Valores Consolidados por Ano Civil" (linhas "2021
+// 1.411,59 ...") não casa com o padrão e fica de fora, evitando dupla contagem.
+function parseRemuneracoesCNIS(texto) {
+  const mapa = new Map();
+  const anoMax = new Date().getFullYear() + 1;
+  const VALOR = '(?:\\d{1,3}(?:\\.\\d{3})+|\\d+),\\d{2}';
+  const re = new RegExp(
+    '(?<![\\d\\/])(\\d{2})\\/(\\d{4})(?!\\/)' +           // competência MM/AAAA (não parte de DD/MM/AAAA)
+    '(?:\\s+\\d{2}\\/\\d{2}\\/\\d{4})?' +                 // data de pagamento (blocos de CI)
+    '\\s+(' + VALOR + ')' +                               // remuneração ou contribuição
+    '(?:\\s+(' + VALOR + '))?' +                          // salário de contribuição (blocos de CI)
+    '((?:\\s+[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)*)',           // indicadores (IREM-INDPEND, PSC-MEN-SM-EC103...)
+    'g'
+  );
+  for (const linhaRaw of texto.split('\n')) {
+    const linha = linhaRaw.replace(/\s+/g, ' ').trim();
+    if (!linha) continue;
+    let m;
+    while ((m = re.exec(linha)) !== null) {
+      const mes = parseInt(m[1], 10), ano = parseInt(m[2], 10);
+      if (mes < 1 || mes > 12 || ano < 1990 || ano > anoMax) continue;
+      const valor = valorBRparaNumero(m[4] || m[3]);
+      if (!isFinite(valor)) continue;
+      const indicadores = (m[5] || '').trim().split(/\s+/).filter(Boolean);
+      const chave = chaveCompetencia(ano, mes);
+      const atual = mapa.get(chave) || { ano, mes, valor: 0, indicadores: new Set(), ocorrencias: 0 };
+      atual.valor += valor;
+      atual.ocorrencias += 1;
+      indicadores.forEach(i => atual.indicadores.add(i));
+      mapa.set(chave, atual);
+    }
+  }
+  return mapa;
+}
+
+const INDICADORES_PISO = /PSC-MEN-SM-EC103|PREC-MENOR-MIN|MENOR-MIN/i;
+
+// Lista ordenada das competências (≥ 11/2019) cujo somatório ficou abaixo do
+// piso. Uma competência marcada pelo INSS com indicador de piso entra mesmo
+// que a soma lida alcance o mínimo — o indicador do próprio CNIS prevalece.
+function calcularCompetenciasAbaixoMinimo(mapa) {
+  const lista = [];
+  mapa.forEach((r, chave) => {
+    const sm = salarioMinimoDaCompetencia(r.ano, r.mes);
+    if (sm === null) return;
+    const indicadores = [...r.indicadores];
+    const marcadaPeloINSS = indicadores.some(i => INDICADORES_PISO.test(i));
+    if (r.valor + 0.005 >= sm && !marcadaPeloINSS) return;
+    lista.push({
+      chave, ano: r.ano, mes: r.mes, label: labelCompetencia(chave),
+      valor: r.valor, sm, diferenca: Math.max(0, sm - r.valor),
+      indicadores, marcadaPeloINSS, ocorrencias: r.ocorrencias
+    });
+  });
+  return lista.sort((a, b) => a.chave.localeCompare(b.chave));
+}
+
+// Índice rápido para as funções de contagem. Enquanto __simularComplementacao
+// estiver ligado, todas as competências voltam a contar — é assim que a
+// análise mede o efeito da complementação.
+window.__abaixoMinimoCNIS = window.__abaixoMinimoCNIS || [];
+window.__simularComplementacao = false;
+
+function temDadosDePiso() {
+  return Array.isArray(window.__abaixoMinimoCNIS) && window.__abaixoMinimoCNIS.length > 0;
+}
+
+function competenciaAbaixoMinimo(ano, mes) {
+  if (window.__simularComplementacao || !temDadosDePiso()) return null;
+  const chave = chaveCompetencia(ano, mes);
+  return window.__abaixoMinimoCNIS.find(c => c.chave === chave) || null;
+}
+
+// Conta as competências de um intervalo que valem como contribuição:
+// mesma contagem de diffMeses (mês a mês, inclusive), menos as que estão
+// abaixo do piso. Competência sem remuneração lida no CNIS continua contando
+// (digitação manual, CNIS sem bloco de remunerações) — só se exclui o que se
+// SABE estar abaixo do mínimo.
+function contarCompetenciasValidas(inicio, fim) {
+  if (!inicio || !fim || fim < inicio) return 0;
+  let total = 0;
+  let cur = inicio.getFullYear() * 12 + inicio.getMonth();
+  const ult = fim.getFullYear() * 12 + fim.getMonth();
+  for (; cur <= ult; cur++) {
+    if (!competenciaAbaixoMinimo(Math.floor(cur / 12), (cur % 12) + 1)) total++;
+  }
+  return total;
+}
+
+// Para CI, facultativa e MEI, a competência abaixo do piso não mantém a
+// qualidade de segurada (art. 19-E, caput). Se as últimas competências do
+// recolhimento ficaram abaixo do mínimo, o período de graça corre da última
+// competência VÁLIDA — o fim do vínculo recua. Para empregada, doméstica e
+// avulsa o prazo do art. 15, II, corre da cessação da atividade, e a data do
+// vínculo é mantida.
+function ajustarVinculosPeloPiso(vinculos) {
+  if (!temDadosDePiso() || window.__simularComplementacao) return vinculos;
+  return vinculos.map(v => {
+    if (!['ci', 'facultativo', 'mei'].includes(v.tipo) || v.emAberto || !v.inicio || !v.fim) return v;
+    const ini = v.inicio.getFullYear() * 12 + v.inicio.getMonth();
+    const fimIdx = v.fim.getFullYear() * 12 + v.fim.getMonth();
+    let cur = fimIdx;
+    while (cur >= ini && competenciaAbaixoMinimo(Math.floor(cur / 12), (cur % 12) + 1)) cur--;
+    if (cur === fimIdx) return v;
+    if (cur < ini) return { ...v, mantemQualidade: false, semCompetenciaValida: true, fimOriginal: v.fim };
+    const novoFim = new Date(Math.floor(cur / 12), (cur % 12) + 1, 0); // último dia da última competência válida
+    return { ...v, fim: novoFim, fimOriginal: v.fim, recuadoPeloPiso: true };
+  });
+}
+
+// Alíquota estimada da complementação: (SM − salário de contribuição) × alíquota
+// da categoria na competência. Empregada/doméstica/avulsa: 8% até 02/2020 e
+// 7,5% desde 03/2020 (faixa do piso); MEI 5%; CI/facultativa 20% no plano
+// normal ou 11% no simplificado (5% na baixa renda). Recolhimento pelo código
+// 1872 (Complemento de Contribuição Previdenciária — EC 103).
+function aliquotaComplemento(ano, mes, tipo, plano) {
+  if (['empregado', 'domestica', 'avulso'].includes(tipo)) {
+    return (ano < 2020 || (ano === 2020 && mes <= 2)) ? 0.08 : 0.075;
+  }
+  if (tipo === 'mei' || plano === 'baixa_renda') return 0.05;
+  if (plano === 'simplificado') return 0.11;
+  return 0.20;
+}
+
+function tipoVinculoNaCompetencia(vinculos, ano, mes) {
+  const inicioMes = new Date(ano, mes - 1, 1);
+  const fimMes = new Date(ano, mes, 0);
+  const v = vinculos.find(x => x.tipo !== 'beneficio' && x.inicio <= fimMes && (x.emAberto || (x.fimOriginal || x.fim) >= inicioMes));
+  if (v) return v.tipo;
+  const cat = $('#categoria_ultimo_vinculo')?.value;
+  const inverso = { empregada: 'empregado', domestica: 'domestica', avulsa: 'avulso', individual: 'ci', facultativa: 'facultativo', mei: 'mei' };
+  return inverso[cat] || 'empregado';
+}
+
+function estimarCustoComplementacao(competencias, vinculos) {
+  const plano = $('#plano_contribuicao')?.value || 'simplificado';
+  let total = 0;
+  const itens = competencias.map(c => {
+    const tipo = tipoVinculoNaCompetencia(vinculos, c.ano, c.mes);
+    const aliquota = aliquotaComplemento(c.ano, c.mes, tipo, plano);
+    const custo = c.diferenca * aliquota;
+    total += custo;
+    return { ...c, tipo, aliquota, custo };
+  });
+  return { itens, total };
+}
+
+// Resumo exibido logo após a leitura do CNIS, antes da análise.
+function resumoCompetenciasAbaixoMinimo() {
+  const lidas = window.__remuneracoesCNIS ? window.__remuneracoesCNIS.size : 0;
+  const abaixo = window.__abaixoMinimoCNIS || [];
+  if (!lidas) {
+    return `<h5 style="margin-top:14px">Remunerações por competência</h5>
+      <div class="extracted-competencia" style="border-left-color:var(--gray-3)">Nenhuma remuneração por competência foi lida neste extrato. A regra do piso (EC 103/2019) não pôde ser verificada automaticamente — confira no CNIS os indicadores PSC-MEN-SM-EC103 / PREC-MENOR-MIN.</div>`;
+  }
+  if (!abaixo.length) {
+    return `<h5 style="margin-top:14px">Remunerações por competência</h5>
+      <div class="extracted-competencia" style="border-left-color:var(--green)">${lidas} competência(s) com remuneração lida. Nenhuma abaixo do salário mínimo a partir de 11/2019 (EC 103/2019).</div>`;
+  }
+  return `<h5 style="margin-top:14px">Competências abaixo do salário mínimo — EC 103/2019</h5>
+    <div class="extracted-competencia"><strong>${abaixo.length} de ${lidas}</strong> competência(s) lida(s) ficaram abaixo do piso e <strong>não serão contadas</strong> na análise enquanto não forem complementadas:</div>` +
+    abaixo.map(c => `<div class="extracted-competencia">
+      <strong>${c.label}</strong> · ${formatBRL(c.valor)} de ${formatBRL(c.sm)} (falta ${formatBRL(c.diferenca)})
+      ${c.indicadores.length ? ` · <span style="font-family:monospace;font-size:10.5px">${c.indicadores.join(' ')}</span>` : ''}
+    </div>`).join('');
+}
+
+// ====================================================================
 // LÓGICA DE ANÁLISE — Qualidade de Segurada + Cenário Duplo
 // ====================================================================
 
@@ -1806,17 +2070,15 @@ function diasAteOParto(dataParto) {
   return Math.ceil((dataParto - hoje) / (1000 * 60 * 60 * 24));
 }
 
-// Detecta competências abaixo do salário mínimo no CNIS (a partir de 11/2019)
-// Lógica: se a remuneração da competência é menor que o SM vigente, é candidata
-// a complementação (art. 19-E do Decreto 3.048/99 + art. 195 §14 CF).
+// Heurística de RESERVA para quando não há remunerações lidas (digitação
+// manual ou CNIS sem bloco de remunerações): vínculos com menos de 1 mês
+// sugerem competência abaixo do piso. Quando o CNIS foi lido com valores,
+// a verificação real é feita por calcularCompetenciasAbaixoMinimo().
 function detectarCompetenciasAbaixoMinimo(vinculos, categoria) {
   // Só faz sentido para categorias que precisam atingir o piso (todas exceto especial)
   if (categoria === 'especial') return [];
+  if (window.__remuneracoesCNIS && window.__remuneracoesCNIS.size > 0) return [];
 
-  // Esta função usa os vínculos já parseados. Como não temos dados de
-  // remunerações por competência no parser atual, vamos sinalizar a
-  // existência de vínculos curtos (menos de 1 mês) que sugerem possível
-  // recolhimento abaixo do piso, sem fazer afirmação categórica.
   const candidatos = [];
   vinculos.forEach(v => {
     const duracao = diffMeses(v.inicio, v.fim);
@@ -2082,12 +2344,21 @@ function contaCarencia(v) {
   return ESPECIES_CONTAM_CARENCIA.has(String(v.especie || ''));
 }
 
+// Meses de um vínculo que valem como contribuição. Benefício (esp. 80) conta
+// mês a mês; vínculo contributivo desconta as competências abaixo do piso
+// (EC 103/2019 — ver contarCompetenciasValidas).
+function mesesContributivos(v, inicio, fim) {
+  if (v.tipo === 'beneficio') return diffMeses(inicio, fim);
+  return contarCompetenciasValidas(inicio, fim);
+}
+
 function totalContribuicoes(vinculos, dataParto) {
   let total = 0;
   vinculos.forEach(v => {
     if (!contaCarencia(v)) return;
-    const fimEfetivo = v.fim > dataParto ? dataParto : v.fim;
-    if (v.inicio <= dataParto) total += diffMeses(v.inicio, fimEfetivo);
+    const fimReal = v.fimOriginal || v.fim;
+    const fimEfetivo = fimReal > dataParto ? dataParto : fimReal;
+    if (v.inicio <= dataParto) total += mesesContributivos(v, v.inicio, fimEfetivo);
   });
   return total;
 }
@@ -2097,8 +2368,9 @@ function contribuicoesAposPerda(vinculos, fimGraca, dataParto) {
   vinculos.forEach(v => {
     if (!contaCarencia(v)) return;
     if (v.inicio > fimGraca && v.inicio <= dataParto) {
-      const fimEfetivo = v.fim > dataParto ? dataParto : v.fim;
-      total += diffMeses(v.inicio, fimEfetivo);
+      const fimReal = v.fimOriginal || v.fim;
+      const fimEfetivo = fimReal > dataParto ? dataParto : fimReal;
+      total += mesesContributivos(v, v.inicio, fimEfetivo);
     }
   });
   return total;
@@ -2168,11 +2440,43 @@ function analisar() {
     cenarioProtetivo = ajustarCenarioProtetivoComPerda(cenarioProtetivo, dataParto);
   }
 
+  // SEGUNDA PASSADA — e se as competências abaixo do piso forem complementadas?
+  // Roda a mesma análise com todas as competências valendo e compara o
+  // veredicto. É o que permite dizer "pode vir a ter direito complementando".
+  let complementacao = null;
+  if (temDadosDePiso() && categoria !== 'especial') {
+    window.__simularComplementacao = true;
+    try {
+      const qualidadeCom = analisarQualidadeSegurada(categoria, vinculos, dataParto);
+      const contribTotalCom = totalContribuicoes(vinculos, dataParto);
+      let protetivoCom = null;
+      if (ehDuploCenario) {
+        protetivoCom = analisarCenarioProtetivo(categoria, vinculos, dataParto, qualidadeCom);
+        protetivoCom = ajustarCenarioProtetivoComPerda(protetivoCom, dataParto);
+      }
+      const cenarioSem = classificarCenario(ehDuploCenario, qualidadeAtual, cenarioProtetivo);
+      const cenarioCom = classificarCenario(ehDuploCenario, qualidadeCom, protetivoCom);
+      const custo = estimarCustoComplementacao(window.__abaixoMinimoCNIS, vinculos);
+      complementacao = {
+        competencias: custo.itens, custoTotal: custo.total,
+        cenarioSem, cenarioCom,
+        qualidadeCom, contribTotalCom, protetivoCom,
+        mudaVeredicto: cenarioSem !== cenarioCom,
+        ganhaQualidade: !qualidadeAtual.temQualidade && qualidadeCom.temQualidade,
+        reduzFaltantes: !!(cenarioProtetivo && protetivoCom && !cenarioProtetivo.isenta
+          && (protetivoCom.faltam || 0) < (cenarioProtetivo.faltam || 0))
+      };
+    } finally {
+      window.__simularComplementacao = false;
+    }
+  }
+
   // Armazenar dados globalmente para geração de PDFs
   window.__analiseAtual = {
     categoria, categoriaUltimoVinculo, fatoGerador, dataParto, vinculos,
     qualidade: qualidadeAtual, contribTotal,
     duplo: ehDuploCenario, protetivo: cenarioProtetivo,
+    complementacao,
     nomeCliente: $('#nome').value || 'Cliente'
   };
 
@@ -2181,10 +2485,14 @@ function analisar() {
 }
 
 function analisarQualidadeSegurada(categoria, vinculos, dataParto) {
+  // Competências abaixo do piso não mantêm a qualidade de CI/facultativa/MEI
+  // (art. 19-E): o fim do recolhimento recua para a última competência válida.
+  vinculos = ajustarVinculosPeloPiso(vinculos);
   const resultado = {
     temQualidade: false, motivo: '', detalhes: [],
     emPeriodoDeGraca: false, fimGraca: null,
-    contribTotal: totalContribuicoes(vinculos, dataParto)
+    contribTotal: totalContribuicoes(vinculos, dataParto),
+    vinculosRecuados: vinculos.filter(v => v.recuadoPeloPiso || v.semCompetenciaValida)
   };
 
   // REGRA FUNDAMENTAL: se a categoria NA DATA DO PARTO é CLT/doméstica/avulsa,
@@ -2484,6 +2792,99 @@ function categoriaAmigavel(cat) {
   return m[cat] || cat;
 }
 
+// Classificação única do cenário (usada na tela, na simulação de
+// complementação e nos PDFs).
+function classificarCenario(duplo, qualidade, protetivo) {
+  if (!duplo) return qualidade.temQualidade ? 'A' : 'B';
+  if (!qualidade.temQualidade) return 'F';
+  if (protetivo && protetivo.isenta) return 'A'; // categoria dispensada de carência mesmo na regra antiga
+  if (protetivo && protetivo.faltam === 0) return 'C';
+  if (protetivo && protetivo.viavel) return 'D';
+  return 'E';
+}
+
+const NOME_CENARIO = {
+  A: 'TEM direito (verde)', B: 'NÃO tem direito (vermelho)', C: 'TEM direito, blindada (verde)',
+  D: 'TEM direito, blindagem pendente e viável (amarelo)', E: 'TEM direito, blindagem inviável (amarelo)',
+  F: 'NÃO tem direito (vermelho)'
+};
+
+// ====== BLOCO 1-B: COMPETÊNCIAS ABAIXO DO PISO — EC 103/2019 ===============
+function renderComplementacao(comp, categoria, qualidade, protetivo, contribTotal) {
+  const box = $('#complementacao-container');
+  if (!comp || !comp.competencias.length) { box.innerHTML = ''; return; }
+  const pNome = primeiroNome();
+  const n = comp.competencias.length;
+
+  const linhas = comp.competencias.map(c => `
+    <tr>
+      <td><strong>${c.label}</strong></td>
+      <td>${formatBRL(c.valor)}</td>
+      <td>${formatBRL(c.sm)}</td>
+      <td>${formatBRL(c.diferenca)}</td>
+      <td>${formatBRL(c.custo)} <span style="color:var(--gray-4);font-weight:normal">(${(c.aliquota * 100).toString().replace('.', ',')}%)</span></td>
+      <td class="indicador">${c.indicadores.length ? c.indicadores.join(' ') : (c.marcadaPeloINSS ? '' : '—')}</td>
+    </tr>`).join('');
+
+  // Efeito da complementação sobre o veredicto
+  let impacto;
+  if (comp.mudaVeredicto || comp.ganhaQualidade) {
+    const partes = [];
+    if (comp.ganhaQualidade) partes.push('a qualidade de segurada passa de <strong>AUSENTE</strong> para <strong>PRESENTE</strong>');
+    if (comp.contribTotalCom !== contribTotal) partes.push(`as contribuições válidas sobem de <strong>${contribTotal}</strong> para <strong>${comp.contribTotalCom}</strong>`);
+    if (comp.reduzFaltantes) partes.push(`a carência protetiva passa a faltar <strong>${comp.protetivoCom.faltam}</strong> em vez de <strong>${protetivo.faltam}</strong>`);
+    impacto = `<div class="impacto muda">
+      <strong>🔑 PODE VIR A TER DIREITO COMPLEMENTANDO.</strong> Sem a complementação, o cenário é
+      <strong>${NOME_CENARIO[comp.cenarioSem]}</strong>. Com as ${n} competência(s) complementada(s), passa a
+      <strong>${NOME_CENARIO[comp.cenarioCom]}</strong>${partes.length ? ' — ' + partes.join('; ') : ''}.
+      Custo estimado da complementação: <strong>${formatBRL(comp.custoTotal)}</strong>.
+    </div>`;
+  } else if (comp.reduzFaltantes) {
+    impacto = `<div class="impacto muda">
+      <strong>Complementar aproxima a blindagem.</strong> A carência protetiva (regra antiga) passa a faltar
+      <strong>${comp.protetivoCom.faltam}</strong> contribuição(ões) em vez de <strong>${protetivo.faltam}</strong>,
+      e as contribuições válidas sobem de ${contribTotal} para ${comp.contribTotalCom}. Custo estimado: <strong>${formatBRL(comp.custoTotal)}</strong>.
+    </div>`;
+  } else {
+    impacto = `<div class="impacto">
+      <strong>Neste caso a complementação não altera o veredicto</strong> (${NOME_CENARIO[comp.cenarioSem]} com ou sem ela)
+      ${comp.contribTotalCom !== contribTotal ? ` — mas eleva as contribuições válidas de ${contribTotal} para ${comp.contribTotalCom}, o que conta para carência e tempo de contribuição futuros` : ''}.
+      Custo estimado: <strong>${formatBRL(comp.custoTotal)}</strong>. Vale registrar como serviço acessório.
+    </div>`;
+  }
+
+  const recuos = (qualidade.vinculosRecuados || []).map(v => v.semCompetenciaValida
+    ? `<li>${v.empregador || 'Recolhimento'}: nenhuma competência atingiu o piso — o vínculo não mantém a qualidade de segurada.</li>`
+    : `<li>${v.empregador || 'Recolhimento'}: fim considerado em <strong>${formatDate(v.fim)}</strong> (última competência válida), e não ${formatDate(v.fimOriginal)} — o período de graça corre daí.</li>`
+  ).join('');
+
+  const notaCLT = ['empregada', 'domestica', 'avulsa'].includes(categoria) || ['empregada', 'domestica', 'avulsa'].includes($('#categoria_ultimo_vinculo').value)
+    ? `<li>Para empregada/doméstica/avulsa, a data de saída do vínculo continua regendo o período de graça (art. 15, II); o que muda é a <strong>contagem de contribuições</strong>. A complementação pode ser feita pela própria segurada, ainda que o recolhimento fosse ônus do empregador.</li>`
+    : '';
+
+  box.innerHTML = `
+    <div class="bloco-complementacao">
+      <div class="titulo-alerta">⚠ ${n} competência(s) abaixo do salário mínimo — EC 103/2019</div>
+      <p>No CNIS de ${pNome}, ${n === 1 ? 'uma competência' : n + ' competências'} a partir de 11/2019 ${n === 1 ? 'ficou' : 'ficaram'} com o somatório dos salários de contribuição
+      <strong>abaixo do piso</strong>. Pela regra da Reforma da Previdência (art. 195, § 14, CF; art. 29 da EC 103/2019; art. 19-E do Decreto 3.048/99),
+      ${n === 1 ? 'ela <strong>não conta</strong>' : 'elas <strong>não contam</strong>'} para qualidade de segurada, carência nem tempo de contribuição enquanto não
+      ${n === 1 ? 'for complementada' : 'forem complementadas'}. <strong>Esta análise já ${n === 1 ? 'a desconsiderou' : 'as desconsiderou'}.</strong></p>
+      <table class="tabela-piso">
+        <thead><tr><th>Competência</th><th>Sal. contribuição</th><th>Piso (SM)</th><th>Diferença</th><th>Complemento estimado</th><th>Indicador CNIS</th></tr></thead>
+        <tbody>${linhas}</tbody>
+      </table>
+      ${impacto}
+      <ul>
+        <li><strong>Complementação</strong> (art. 19-E, § 1º, I): pode ser feita <strong>a qualquer tempo</strong>, pagando a diferença até o piso × alíquota da categoria — GPS/DARF <strong>código 1872</strong> (Complemento de Contribuição Previdenciária — EC 103). O valor acima é estimativa; confirmar o plano de contribuição da segurada e o cálculo no Meu INSS / SAL.</li>
+        <li><strong>Utilização de excedente</strong> ou <strong>agrupamento</strong> de competências (incisos II e III) só entre competências do <strong>mesmo ano civil</strong> (§ 4º) — alternativa sem desembolso quando houver mês acima do piso no mesmo ano.</li>
+        <li>Conferir no CNIS o indicador <span class="indicador">PSC-MEN-SM-EC103</span> / <span class="indicador">PREC-MENOR-MIN</span>: é a marca do próprio INSS de que a competência está pendente de ajuste.</li>
+        ${notaCLT}
+        ${recuos ? `<li><strong>Efeito sobre o período de graça:</strong><ul>${recuos}</ul></li>` : ''}
+      </ul>
+    </div>
+  `;
+}
+
 function renderizar(categoria, fatoGerador, dataParto, qualidade, contribTotal, duplo, protetivo) {
   // ====== CLASSIFICAR O CENÁRIO ======
   // A: parto até 31/12/2026 + qualidade SIM  → VERDE simples
@@ -2493,19 +2894,11 @@ function renderizar(categoria, fatoGerador, dataParto, qualidade, contribTotal, 
   // E: parto pós + qualidade SIM + protetivo inviável  → AMARELO (risco residual)
   // F: parto pós + qualidade NÃO → VERMELHO
 
-  let cenarioId;
-  if (!duplo) {
-    cenarioId = qualidade.temQualidade ? 'A' : 'B';
-  } else {
-    if (!qualidade.temQualidade) cenarioId = 'F';
-    else if (protetivo && protetivo.isenta) cenarioId = 'A'; // categoria dispensada de carência mesmo na regra antiga
-    else if (protetivo && protetivo.faltam === 0) cenarioId = 'C';
-    else if (protetivo && protetivo.viavel) cenarioId = 'D';
-    else cenarioId = 'E';
-  }
+  const cenarioId = classificarCenario(duplo, qualidade, protetivo);
 
   renderResultadoFinal(cenarioId, dataParto);
   renderAlertaConsistencia(qualidade);
+  renderComplementacao(window.__analiseAtual && window.__analiseAtual.complementacao, categoria, qualidade, protetivo, contribTotal);
   renderAtencaoPosEleicao(cenarioId, dataParto);
   renderExplicacao(cenarioId, categoria, qualidade, dataParto, protetivo);
   renderFinanceiro(cenarioId, categoria, fatoGerador, qualidade, protetivo, dataParto);
@@ -2911,18 +3304,37 @@ function renderPlanoAcao(cenarioId, categoria, qualidade, dataParto, protetivo) 
   // SEÇÃO ADICIONAL: COMPLEMENTAÇÃO DE COMPETÊNCIAS ABAIXO DO MÍNIMO
   // ===========================================================
   const vinculos = coletarVinculos();
-  const abaixoMinimo = detectarCompetenciasAbaixoMinimo(vinculos, categoria);
-  if (abaixoMinimo.length > 0) {
+  const comp = window.__analiseAtual && window.__analiseAtual.complementacao;
+  if (comp && comp.competencias.length > 0) {
+    const lista = comp.competencias.map(c => `${c.label} (falta ${formatBRL(c.diferenca)})`).join('; ');
+    const acoes = [];
+    if (comp.mudaVeredicto || comp.ganhaQualidade || comp.reduzFaltantes) {
+      acoes.push(`<li><strong>Orientar a complementação</strong> das competências ${lista} — código 1872, custo estimado <strong>${formatBRL(comp.custoTotal)}</strong>. ${comp.mudaVeredicto || comp.ganhaQualidade ? 'É o que viabiliza o direito neste caso (veja o quadro amarelo acima).' : 'Reduz o que falta para a blindagem.'}</li>`);
+      acoes.push(`<li>Antes de pagar, verificar se há mês <strong>acima do piso no mesmo ano civil</strong> para utilizar o excedente ou agrupar (sem desembolso) — art. 19-E, § 1º, II e III.</li>`);
+      acoes.push(`<li>Após o processamento do ajuste (irreversível, § 2º), <strong>emitir novo CNIS</strong> e refazer esta análise antes de protocolar.</li>`);
+    } else {
+      acoes.push(`<li>Competências abaixo do piso já desconsideradas: ${lista}. A complementação (custo estimado ${formatBRL(comp.custoTotal)}) não muda o veredicto, mas valida competências para carência e tempo de contribuição futuros — oferecer como serviço acessório.</li>`);
+    }
     secoes.push(`
       <div class="secao-acao">
-        <div class="secao-titulo"><span class="icone-sec">🔍</span> Oportunidade identificada no histórico contributivo</div>
-        <ol>
-          <li>Identifiquei <strong>${abaixoMinimo.length} vínculo(s) curto(s)</strong> que podem ter gerado competências contribuídas abaixo do salário mínimo: ${abaixoMinimo.slice(0, 3).map(c => `${c.empregador} (${formatDate(c.inicio)} → ${formatDate(c.fim)})`).join('; ')}${abaixoMinimo.length > 3 ? '; ...' : ''}.</li>
-          <li><strong>Verificar no CNIS</strong> se essas competências estão validadas (sinalizadas com PREC-MENOR-MIN). Se não estiverem, podem ser complementadas pagando a diferença até o piso (fórmula: <em>(SM − valor recolhido) × alíquota</em>) — art. 19-E do Decreto 3.048/99 + art. 195 §14 CF.</li>
-          <li><strong>Estratégia:</strong> a complementação é mais barata que uma nova contribuição completa e VALIDA competências que hoje não contam para nada. Em casos limítrofes, pode ser o que viabiliza o benefício. Considerar como serviço acessório no contrato.</li>
-        </ol>
+        <div class="secao-titulo"><span class="icone-sec">🔍</span> Competências abaixo do salário mínimo (EC 103/2019)</div>
+        <ol>${acoes.join('')}</ol>
       </div>
     `);
+  } else {
+    const abaixoMinimo = detectarCompetenciasAbaixoMinimo(vinculos, categoria);
+    if (abaixoMinimo.length > 0) {
+      secoes.push(`
+        <div class="secao-acao">
+          <div class="secao-titulo"><span class="icone-sec">🔍</span> Conferir no CNIS — possível competência abaixo do piso</div>
+          <ol>
+            <li>Não foi possível ler as remunerações por competência (digitação manual ou extrato sem esse bloco). Há <strong>${abaixoMinimo.length} vínculo(s) curto(s)</strong> que podem ter gerado competências abaixo do salário mínimo: ${abaixoMinimo.slice(0, 3).map(c => `${c.empregador} (${formatDate(c.inicio)} → ${formatDate(c.fim)})`).join('; ')}${abaixoMinimo.length > 3 ? '; ...' : ''}.</li>
+            <li><strong>Verificar no CNIS</strong> os indicadores PSC-MEN-SM-EC103 / PREC-MENOR-MIN. Competência abaixo do piso a partir de 11/2019 <strong>não conta</strong> para qualidade, carência ou tempo até ser complementada (diferença até o piso × alíquota, código 1872) — art. 195, § 14, CF + art. 19-E do Decreto 3.048/99.</li>
+            <li><strong>Estratégia:</strong> a complementação é mais barata que uma contribuição nova e valida competências que hoje não contam para nada. Em casos limítrofes, pode ser o que viabiliza o benefício.</li>
+          </ol>
+        </div>
+      `);
+    }
   }
 
   $('#plano-acao-container').innerHTML = `
@@ -3136,8 +3548,13 @@ function renderDetalhesTecnicos(categoria, qualidade, dataParto, contribTotal, d
   dadosTecnicos.push(`<div class="data-row"><span class="label">Data do fato gerador</span><span class="value">${formatDate(dataParto)}</span></div>`);
   dadosTecnicos.push(`<div class="data-row"><span class="label">Qualidade de segurada</span><span class="value ${qualidade.temQualidade ? 'ok' : 'no'}">${qualidade.temQualidade ? 'PRESENTE' : 'AUSENTE'}</span></div>`);
 
+  const comp = window.__analiseAtual && window.__analiseAtual.complementacao;
   if (categoria !== 'especial') {
     dadosTecnicos.push(`<div class="data-row"><span class="label">Contribuições totais identificadas</span><span class="value">${contribTotal}</span></div>`);
+    if (comp && comp.competencias.length) {
+      dadosTecnicos.push(`<div class="data-row"><span class="label">Competências abaixo do piso (EC 103) — desconsideradas</span><span class="value warn">${comp.competencias.length} (${comp.competencias.map(c => c.label).join(', ')})</span></div>`);
+      dadosTecnicos.push(`<div class="data-row"><span class="label">Contribuições válidas se complementadas</span><span class="value ${comp.mudaVeredicto || comp.ganhaQualidade ? 'ok' : ''}">${comp.contribTotalCom} · cenário ${comp.cenarioSem} → ${comp.cenarioCom}</span></div>`);
+    }
     if (qualidade.fimGraca) {
       dadosTecnicos.push(`<div class="data-row"><span class="label">Período de graça aplicável</span><span class="value">${qualidade.mesesGraca} meses (até ${formatDate(qualidade.fimGraca)})</span></div>`);
     }
@@ -3188,6 +3605,10 @@ function renderDetalhesTecnicos(categoria, qualidade, dataParto, contribTotal, d
   }
   if (duplo) {
     fundamentos.push('Cenário protetivo: anterioridade nonagesimal (art. 195, § 6º, CF/88) protege contra mudanças imediatas.');
+  }
+  if (comp && comp.competencias.length) {
+    fundamentos.push('Art. 195, § 14, da CF/88 e art. 29 da EC 103/2019 — só é reconhecida a competência cuja contribuição atinja o mínimo da categoria, assegurados complementação, utilização de excedente e agrupamento.');
+    fundamentos.push('Art. 19-E do Decreto 3.048/99 (Decreto 10.410/2020) — a partir de 13/11/2019, competência abaixo do piso não conta para aquisição e manutenção da qualidade de segurado, carência e tempo de contribuição; § 1º (complementação, utilização, agrupamento), § 2º (irreversibilidade após processado) e § 4º (utilização e agrupamento só no mesmo ano civil).');
   }
 
   $('#detalhes-tecnicos-container').innerHTML = `
@@ -3314,6 +3735,14 @@ function abrirJanelaPDF(titulo, conteudoHTML, nomeArquivoSugerido) {
       .value.no { color: #a83232; }
       .alerta-consistencia { background: #fff4f4; border-left: 4px solid #b3261e; padding: 12px 14px; border-radius: 4px; margin-bottom: 14px; }
       .alerta-consistencia .titulo-alerta { font-weight: bold; color: #b3261e; text-transform: uppercase; }
+      .bloco-complementacao { background: #fdf5e0; border-left: 4px solid #b8860b; padding: 12px 14px; border-radius: 4px; margin-bottom: 14px; font-size: 10pt; }
+      .bloco-complementacao .titulo-alerta { font-weight: bold; color: #b8860b; text-transform: uppercase; }
+      .bloco-complementacao .impacto { margin: 8px 0; padding: 8px 10px; background: #fff; border-left: 3px solid #0D2340; }
+      .bloco-complementacao .impacto.muda { border-left-color: #2d7a3e; }
+      .bloco-complementacao table.tabela-piso { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 9pt; background: #fff; }
+      .bloco-complementacao table.tabela-piso th, .bloco-complementacao table.tabela-piso td { padding: 3px 6px; border-bottom: 1px solid #e5e5ea; text-align: right; }
+      .bloco-complementacao table.tabela-piso th:first-child, .bloco-complementacao table.tabela-piso td:first-child { text-align: left; }
+      .bloco-complementacao .indicador { font-family: monospace; font-size: 8.5pt; color: #b3261e; }
       .atencao-pos-eleicao { background: #fdf5e0; border-left: 4px solid #b8860b; padding: 12px 14px; border-radius: 4px; margin-bottom: 14px; }
       .aviso-urgencia { background: #a83232; color: white; padding: 12px 14px; border-radius: 4px; margin-bottom: 14px; }
       .aviso-urgencia-titulo { font-weight: bold; }
@@ -3370,6 +3799,7 @@ function gerarPDFInterno() {
   // Capturar o conteúdo do resultado já renderizado
   const veredicto = $('#resultado-final-container').innerHTML;
   const alertaConsistencia = $('#alerta-consistencia-container').innerHTML;
+  const complementacao = $('#complementacao-container').innerHTML;
   const atencao = $('#atencao-container').innerHTML;
   const explicacao = $('#explicacao-container').innerHTML;
   const planoAcao = $('#plano-acao-container').innerHTML;
@@ -3418,7 +3848,7 @@ function gerarPDFInterno() {
     </div>
   `;
 
-  const conteudo = cabecalho + dadosCaso + veredicto + alertaConsistencia + atencao +
+  const conteudo = cabecalho + dadosCaso + veredicto + alertaConsistencia + complementacao + atencao +
     '<h3>SITUAÇÃO DO CASO</h3>' + explicacao +
     planoAcao +
     '<h3>ANÁLISE FINANCEIRA</h3>' + financeiro +
@@ -3439,13 +3869,7 @@ function gerarPDFCliente() {
   // Classificar cenário para mensagem adequada
   const q = a.qualidade;
   const duplo = a.duplo;
-  let cenarioId;
-  if (!q.temQualidade) cenarioId = duplo ? 'F' : 'B';
-  else if (a.protetivo && a.protetivo.isenta) cenarioId = 'A';
-  else if (!duplo) cenarioId = 'A';
-  else if (a.protetivo && a.protetivo.faltam === 0) cenarioId = 'C';
-  else if (a.protetivo && a.protetivo.viavel) cenarioId = 'D';
-  else cenarioId = 'E';
+  const cenarioId = classificarCenario(duplo, q, a.protetivo);
 
   const isAdocao = a.fatoGerador === 'adocao';
   const dataLabel = isAdocao ? 'a data prevista da guarda' : 'a data prevista do parto';
