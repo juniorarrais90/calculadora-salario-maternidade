@@ -1105,13 +1105,20 @@
   <footer>
     <strong>ARRAIS ADVOGADOS · OAB/MG 19.391</strong> · Ferramenta de uso interno · Não substitui análise jurídica individualizada<br>
     Base normativa: Lei 8.213/91 · Lei 8.212/91 · IN PRES/INSS 128/2022 · STF, ADIs 2.110 e 2.111 (Rel. Min. Nunes Marques) · IN PRES/INSS 188/2025<br>
-    <span style="opacity:0.6">v3.8.1 · setembro/2026</span>
+    <span style="opacity:0.6">v3.8.2 · setembro/2026</span>
   </footer>
 </div>
 
 <script>
 // =====================================================================
-// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.8.1
+// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.8.2
+// v3.8.2 (15/09/2026): o fato gerador passa a ser a régua — vínculos, benefícios e
+//   competências abaixo do piso POSTERIORES ao parto deixam de entrar na análise
+//   (um vínculo em aberto de 2026 abria período de graça e salvava parto de 2021);
+//   parto passado não aceita "Não sei"; textos "ocorreu/previsto"; parto passado sem
+//   qualidade não orienta GPS; valor pelo salário mínimo da data do parto + alerta de
+//   prescrição; removida a citação errada do "Tema 220 da TNU" (o tema trata de
+//   carência em benefício por incapacidade, não de gestação no período de graça).
 // v3.8.1 (09/2026): categoria no parto "Não sei / em dúvida" (análise conservadora,
 //   sem presumir CLT nem dispensa de carência) e RESSALVA no veredicto quando há
 //   competência abaixo do piso dentro do vínculo ativo — deixa de sair
@@ -1273,7 +1280,10 @@ function inferirCategoriaNoParto() {
   }
 
   // Parto já ocorrido: o histórico responde qual era a filiação naquela data.
-  const ultimo = vinculos.reduce((a, b) => (b.fim > a.fim ? b : a));
+  // Vínculos iniciados DEPOIS do fato gerador não entram — o fato gerador é a régua.
+  const anteriores = vinculos.filter(v => v.inicio <= dataParto);
+  if (anteriores.length === 0) { mostrarAvisoCategoria(null); return; }
+  const ultimo = anteriores.reduce((a, b) => (b.fim > a.fim ? b : a));
   let inferida, nivel, titulo, texto;
 
   if (ativo) {
@@ -1461,6 +1471,9 @@ async function processarCNIS(file) {
     // Sempre recomeça do zero: dado de um CNIS anterior não pode contaminar o próximo.
     window.__remuneracoesCNIS = parseRemuneracoesCNIS(textoCompleto);
     window.__abaixoMinimoCNIS = calcularCompetenciasAbaixoMinimo(window.__remuneracoesCNIS);
+    // Lista integral do extrato. A análise trabalha com o recorte até o fato
+    // gerador (ver recortarPeloFatoGerador) — o que veio depois não interessa.
+    window.__abaixoMinimoCNISTodas = window.__abaixoMinimoCNIS;
     console.log('Competências com remuneração lidas:', window.__remuneracoesCNIS.size);
     console.log('Competências abaixo do piso (EC 103):', window.__abaixoMinimoCNIS);
     console.groupEnd();
@@ -1862,6 +1875,25 @@ function calcularCompetenciasAbaixoMinimo(mapa) {
 window.__abaixoMinimoCNIS = window.__abaixoMinimoCNIS || [];
 window.__simularComplementacao = false;
 
+// Restringe as competências abaixo do piso às que vão ATÉ o mês do fato gerador.
+// Competência posterior ao parto não afeta qualidade nem carência daquele pedido.
+function recortarPisoPeloFatoGerador(dataParto) {
+  const todas = window.__abaixoMinimoCNISTodas || window.__abaixoMinimoCNIS || [];
+  window.__abaixoMinimoCNISTodas = todas;
+  const limite = dataParto.getFullYear() * 12 + dataParto.getMonth();
+  window.__abaixoMinimoCNIS = todas.filter(c => c.ano * 12 + (c.mes - 1) <= limite);
+}
+
+function partoJaOcorreu(dataParto) {
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  return dataParto < hoje;
+}
+
+// "ocorreu em 02/12/2021" ou "está previsto para 02/12/2026"
+function textoDataParto(dataParto) {
+  return partoJaOcorreu(dataParto) ? `ocorreu em ${formatDate(dataParto)}` : `está previsto para ${formatDate(dataParto)}`;
+}
+
 function temDadosDePiso() {
   return Array.isArray(window.__abaixoMinimoCNIS) && window.__abaixoMinimoCNIS.length > 0;
 }
@@ -2194,7 +2226,20 @@ function tipoDescontoCategoria(categoria, planoAnterior) {
 }
 
 // Calcula o valor mensal do salário-maternidade conforme a categoria
-function calcularValorMensalSM(categoria) {
+// Salário mínimo nacional vigente numa data (valores oficiais anuais).
+function salarioMinimoVigente(data) {
+  const ano = data.getFullYear(), mes = data.getMonth() + 1;
+  const tabela = { 2015: 788, 2016: 880, 2017: 937, 2018: 954, 2019: 998, 2021: 1100, 2022: 1212, 2024: 1412, 2025: 1518 };
+  if (ano >= 2026) return SALARIO_MINIMO_2026;
+  if (ano === 2020) return mes === 1 ? 1039 : 1045;
+  if (ano === 2023) return mes <= 4 ? 1302 : 1320;
+  return tabela[ano] || tabela[2015];
+}
+
+function calcularValorMensalSM(categoria, dataParto) {
+  // O benefício é devido pelo valor da época do fato gerador — parto de 2021
+  // não pode ser calculado com o salário mínimo de 2026.
+  if (dataParto) return salarioMinimoVigente(dataParto);
   // No escritório, na esmagadora maioria dos casos o SM é de 1 SM:
   // - Especial rural, MEI, facultativa plano simplificado: 1 SM
   // - Individual: média 12 últimas (geralmente 1 SM no plano simplificado)
@@ -2205,8 +2250,8 @@ function calcularValorMensalSM(categoria) {
 }
 
 // Calcula o resultado financeiro completo do salário-maternidade
-function calcularResultadoFinanceiro(categoria, fatoGerador) {
-  const valorMensal = calcularValorMensalSM(categoria);
+function calcularResultadoFinanceiro(categoria, fatoGerador, dataParto) {
+  const valorMensal = calcularValorMensalSM(categoria, dataParto);
   const dias = fatoGerador === 'aborto' ? 14 : 120;
   const mesesSM = dias / 30; // 120/30 = 4 ; 14/30 ≈ 0,467
   const valorBrutoSM = valorMensal * mesesSM;
@@ -2437,7 +2482,28 @@ function analisar() {
   if (!dataParto) { alert('Informe a data do parto / fato gerador.'); return; }
 
   const fatoGerador = $('#fato_gerador').value;
-  const vinculos = coletarVinculos();
+  // O FATO GERADOR É A RÉGUA: vínculos, benefícios e competências posteriores a
+  // ele não influem na qualidade de segurada, na carência nem nas pendências de
+  // piso. Sem este recorte, um vínculo em aberto de hoje abria "período de graça"
+  // até o ano seguinte e salvava um parto ocorrido anos antes.
+  const vinculos = coletarVinculos().filter(v => v.inicio <= dataParto);
+  recortarPisoPeloFatoGerador(dataParto);
+
+  // Parto já ocorrido não admite "Não sei": o CNIS responde como ela estava.
+  if (categoria === 'incerta' && dataParto <= new Date() && vinculos.length > 0) {
+    const ativo = vinculos
+      .filter(v => v.inicio <= dataParto && (v.emAberto || v.fim >= dataParto))
+      .sort((a, b) => b.inicio - a.inicio)[0];
+    const deduzida = ativo ? (TIPO_PARA_CATEGORIA[ativo.tipo] || '') : 'desempregada';
+    if (deduzida) {
+      alert('O fato gerador (' + formatDate(dataParto) + ') já ocorreu, então a categoria "Não sei / em dúvida" não se aplica: '
+        + 'o histórico mostra como a segurada estava filiada naquela data.\n\n'
+        + 'A análise seguirá com a categoria deduzida do CNIS. Confira o campo antes de gerar os PDFs.');
+      categoriaPartoEditadaManualmente = false;
+      definirCategoriaParto(deduzida);
+      return analisar();
+    }
+  }
 
   // Invalida o resultado anterior. Sem isto, uma análise interrompida por
   // validação deixava __analiseAtual preenchido com o caso ANTERIOR — e os
@@ -3013,8 +3079,12 @@ function renderResultadoFinal(cenarioId, dataParto, qualidade, comp) {
     'B': {
       cor: 'vermelho',
       icone: '❌',
-      titulo: `${nome} NÃO tem qualidade de segurada hoje`,
-      subtitulo: 'A cliente não preenche os requisitos atuais. Veja abaixo a estratégia para recuperar a qualidade ou aplicar tese subsidiária.'
+      titulo: partoJaOcorreu(dataParto)
+        ? `${nome} NÃO tinha qualidade de segurada na data do parto`
+        : `${nome} NÃO tem qualidade de segurada hoje`,
+      subtitulo: partoJaOcorreu(dataParto)
+        ? `Pelo CNIS, a qualidade de segurada ${qualidade.fimGraca ? `foi mantida só até ${formatDate(qualidade.fimGraca)}` : 'não existia'} — antes do parto, em ${formatDate(dataParto)}. Vínculos e contribuições posteriores ao parto não contam. Só há direito se houver fato não registrado no CNIS — veja o plano de ação.`
+        : 'A cliente não preenche os requisitos atuais. Veja abaixo a estratégia para recuperar a qualidade ou aplicar tese subsidiária.'
     },
     'C': {
       cor: 'verde',
@@ -3174,7 +3244,7 @@ function renderExplicacao(cenarioId, categoria, qualidade, dataParto, protetivo)
         const origemTexto = qualidade.categoriaGraca === 'beneficio'
           ? `O <strong>benefício que ela recebia do INSS cessou em ${formatDate(qualidade.dataFimUltimo)}</strong>. Enquanto recebia, a proteção era automática (art. 15, I). A partir da cessação`
           : `O último vínculo dela terminou em <strong>${formatDate(qualidade.dataFimUltimo)}</strong>. Depois disso`;
-        paragrafos.push(`<p>${origemTexto}, ela tem <span class="destaque">${qualidade.mesesGraca} meses de "período de graça"</span> (proteção automática do INSS), que vai até ${formatDate(qualidade.fimGraca)}. Como o parto está previsto para ${formatDate(dataParto)}, ela <strong>ainda está dentro dessa proteção</strong>.</p>`);
+        paragrafos.push(`<p>${origemTexto}, ela tem <span class="destaque">${qualidade.mesesGraca} meses de "período de graça"</span> (proteção automática do INSS), que vai até ${formatDate(qualidade.fimGraca)}. Como o parto ${textoDataParto(dataParto)}, ela <strong>${partoJaOcorreu(dataParto) ? 'estava dentro dessa proteção' : 'ainda está dentro dessa proteção'}</strong>.</p>`);
       } else if (qualidade.contribAposPerda && qualidade.contribAposPerda >= 1) {
         paragrafos.push(`<p>Ela já tinha perdido a qualidade de segurada anteriormente, mas <strong>recuperou</strong> ao fazer ${qualidade.contribAposPerda} nova(s) contribuição(ões). Pela regra atual do STF, isso já basta para ter direito ao salário-maternidade.</p>`);
       } else {
@@ -3182,10 +3252,14 @@ function renderExplicacao(cenarioId, categoria, qualidade, dataParto, protetivo)
       }
     } else {
       if (qualidade.fimGraca) {
-        paragrafos.push(`<p>O problema é que o "período de graça" dela (a proteção automática do INSS depois do último vínculo) terminou em <strong>${formatDate(qualidade.fimGraca)}</strong>. Como o parto está previsto para ${formatDate(dataParto)}, ela <strong>já perdeu essa proteção</strong>.</p>`);
-        paragrafos.push(`<p>Para <strong>recuperar a qualidade de segurada</strong>, basta <span class="destaque">1 contribuição em dia</span>. Com a qualidade recuperada e pela regra atual do STF (ADIs 2.110 e 2.111), ela já tem direito ao salário-maternidade.</p>`);
+        paragrafos.push(`<p>O problema é que o "período de graça" dela (a proteção automática do INSS depois do último vínculo) terminou em <strong>${formatDate(qualidade.fimGraca)}</strong>. Como o parto ${textoDataParto(dataParto)}, ela <strong>${partoJaOcorreu(dataParto) ? 'já tinha perdido essa proteção na data do parto' : 'já perdeu essa proteção'}</strong>.</p>`);
+        paragrafos.push(partoJaOcorreu(dataParto)
+          ? `<p>Como o parto <strong>já aconteceu</strong>, contribuição feita agora <strong>não recupera a qualidade de segurada retroativamente</strong>. O direito só existe se houver algo que o CNIS não mostra: vínculo ou atividade não registrados até o parto, prorrogação do período de graça por desemprego involuntário (art. 15, § 2º) ou por mais de 120 contribuições sem perda da qualidade (art. 15, § 1º). Contribuições e vínculos posteriores ao parto foram desconsiderados.</p>`
+          : `<p>Para <strong>recuperar a qualidade de segurada</strong>, basta <span class="destaque">1 contribuição em dia</span>. Com a qualidade recuperada e pela regra atual do STF (ADIs 2.110 e 2.111), ela já tem direito ao salário-maternidade.</p>`);
       } else {
-        paragrafos.push(`<p>Os dados informados indicam que ela não tem vínculo, contribuição ou período de graça ativo na data do parto. Para recuperar a qualidade, basta <span class="destaque">1 contribuição em dia</span>.</p>`);
+        paragrafos.push(partoJaOcorreu(dataParto)
+          ? `<p>Os dados informados indicam que ela não tinha vínculo, contribuição ou período de graça ativo na data do parto. Como o parto já ocorreu, contribuição feita agora não recupera a qualidade retroativamente.</p>`
+          : `<p>Os dados informados indicam que ela não tem vínculo, contribuição ou período de graça ativo na data do parto. Para recuperar a qualidade, basta <span class="destaque">1 contribuição em dia</span>.</p>`);
       }
     }
   }
@@ -3267,12 +3341,15 @@ function renderPlanoAcao(cenarioId, categoria, qualidade, dataParto, protetivo) 
       acoes.push(`<li><strong>Após a contribuição</strong>, a cliente recupera a qualidade de segurada. Pela regra atual do STF (ADIs 2.110 e 2.111, IN 188/2025), basta isso para ter direito ao SM — não há mais exigência de carência.</li>`);
       acoes.push(`<li><strong>Após o nascimento</strong>, protocolar requerimento administrativo pelo escritório.</li>`);
       acoes.push(`<li><strong>Em caso de indeferimento</strong>, ajuizar ação com tutela de urgência fundamentada nas ADIs 2.110 e 2.111.</li>`);
+    } else if (partoJaOcorreu(dataParto)) {
+      // Parto passado: não há contribuição que salve. Só fato não registrado no CNIS.
+      acoes.push(`<li><strong>${pNome} NÃO tinha qualidade de segurada na data do parto (${formatDate(dataParto)})</strong>, pelo que consta do CNIS. Contribuição feita agora não produz efeito retroativo — <strong>não orientar recolhimento de GPS para este pedido</strong>.</li>`);
+      acoes.push(`<li><strong>Investigar antes de descartar:</strong> (a) vínculo ou trabalho não registrado no CNIS entre ${qualidade.dataFimUltimo ? formatDate(qualidade.dataFimUltimo) : 'a última filiação'} e o parto (CTPS, holerites, reclamatória trabalhista, recolhimentos em atraso com prova da atividade); (b) desemprego involuntário após o último vínculo — seguro-desemprego ou outra prova — que prorroga o período de graça em 12 meses (art. 15, § 2º); (c) mais de 120 contribuições sem perda da qualidade (art. 15, § 1º). Se algum desses pontos se confirmar, marcar no formulário e refazer a análise.</li>`);
+      acoes.push(`<li><strong>Não fechar contrato</strong> para requerimento de salário-maternidade com base apenas neste CNIS.</li>`);
     } else {
-      // Sem competências pagáveis = parto hoje/já ocorreu OU outro cenário extremo
+      // Sem competências pagáveis com parto futuro/hoje — cenário extremo
       acoes.push(`<li><strong>${pNome} NÃO tem qualidade de segurada e NÃO há mais competências GPS pagáveis</strong> antes do parto. Cenário crítico.</li>`);
-      acoes.push(`<li><strong>Verificar a DUM (Data da Última Menstruação)</strong> no pré-natal. Se a gestação iniciou dentro do período de graça (mesmo que tenha expirado depois), aplica-se o <strong>Tema 220 da TNU</strong> (PEDILEF 0501066-93.2018.4.05.8404, j. 18/12/2020) — qualidade mantida até o parto.</li>`);
-      acoes.push(`<li><strong>Fechar contrato</strong> destacando que o caso exigirá ação judicial com fundamentação na tese da gestação no período de graça.</li>`);
-      acoes.push(`<li><strong>Estratégia processual:</strong> ajuizar ação após o nascimento, com pedido de tutela de urgência, juntando exames pré-natais (USG) que confirmem a DUM dentro do período de graça.</li>`);
+      acoes.push(`<li><strong>Investigar</strong> vínculo ou atividade não registrados no CNIS e hipóteses de prorrogação do período de graça (art. 15, §§ 1º e 2º) antes de orientar a cliente.</li>`);
     }
 
     secoes.push(`
@@ -3337,7 +3414,7 @@ function renderPlanoAcao(cenarioId, categoria, qualidade, dataParto, protetivo) 
     acoes.push(`<li><strong>Fechar contrato</strong> destacando o risco regulatório e a estratégia mista (regra atual + tese subsidiária).</li>`);
     acoes.push(`<li><strong>Acompanhar o cenário legislativo e judicial</strong>: qualquer mudança da regra precisa respeitar a anterioridade nonagesimal (art. 195, §6º, CF/88). Há margem de manobra processual.</li>`);
     acoes.push(`<li><strong>Após o nascimento</strong>, protocolar requerimento administrativo pelo escritório.</li>`);
-    acoes.push(`<li><strong>Estratégia processual subsidiária</strong>: se a regra mudar antes do parto, ajuizar ação com tese da irretroatividade + Tema 220 TNU (se houver compatibilidade com DUM).</li>`);
+    acoes.push(`<li><strong>Estratégia processual subsidiária</strong>: se a regra mudar antes do parto, ajuizar ação com tese da irretroatividade.</li>`);
     secoes.push(`
       <div class="secao-acao">
         <div class="secao-titulo"><span class="icone-sec">⚠️</span> Plano de ação — direito hoje com risco residual</div>
@@ -3391,9 +3468,8 @@ function renderPlanoAcao(cenarioId, categoria, qualidade, dataParto, protetivo) 
       acoes.push(`<li><em>Detalhe importante:</em> a cliente já tem ${contribAnteriores} contribuição(ões) anterior(es) válida(s). Essas contribuições <strong>NÃO contam</strong> automaticamente — só voltam a valer após cumpridas as 5 do art. 27-A. É por isso que o art. 27-A "revalida" a contagem anterior.</li>`);
     }
 
-    acoes.push(`<li><strong>Verificar DUM no pré-natal</strong>: se a gestação iniciou no período de graça, aplica-se o Tema 220 da TNU como reforço argumentativo.</li>`);
     acoes.push(`<li><strong>Após o nascimento</strong>, protocolar requerimento administrativo pelo escritório.</li>`);
-    acoes.push(`<li><strong>Em caso de indeferimento</strong>, ajuizar ação com tutela de urgência, fundamentada nas ADIs 2.110 e 2.111 (regra principal) e Tema 220 TNU (subsidiária).</li>`);
+    acoes.push(`<li><strong>Em caso de indeferimento</strong>, ajuizar ação com tutela de urgência, fundamentada nas ADIs 2.110 e 2.111.</li>`);
 
     secoes.push(`
       <div class="secao-acao">
@@ -3412,11 +3488,11 @@ function renderPlanoAcao(cenarioId, categoria, qualidade, dataParto, protetivo) 
     if (gestacaoIniciada <= qualidade.fimGraca) {
       secoes.push(`
         <div class="secao-acao">
-          <div class="secao-titulo"><span class="icone-sec">⚖️</span> Tese jurídica adicional aplicável</div>
+          <div class="secao-titulo"><span class="icone-sec">⚖️</span> Ponto a verificar — gestação iniciada no período de graça</div>
           <ol>
-            <li><strong>Tese da gestação iniciada no período de graça</strong> — Tema 220 da TNU (PEDILEF 0501066-93.2018.4.05.8404, j. 18/12/2020): se a gestação iniciou dentro do período de graça, a qualidade é mantida até o parto, mesmo que o período de graça tenha expirado antes.</li>
-            <li><strong>Confirmar a DUM</strong> nos exames de pré-natal (USG transvaginal precoce confirma a data com precisão).</li>
-            <li><strong>Esta tese pode garantir o direito mesmo sem as 5 contribuições do art. 27-A</strong> — vale apostar nela como pedido principal em ação judicial, com o art. 27-A como pedido subsidiário.</li>
+            <li>A gestação provavelmente começou (${formatDate(gestacaoIniciada)}, estimativa de 9 meses antes do parto) <strong>antes do fim do período de graça</strong> (${formatDate(qualidade.fimGraca)}).</li>
+            <li><strong>Não há tese vinculante cadastrada nesta ferramenta</strong> garantindo o benefício nessa hipótese — o fato gerador continua sendo o parto. Antes de sustentar essa linha em juízo, <strong>pesquisar precedente atual com fonte completa</strong> (tribunal, número, órgão julgador e data).</li>
+            <li>Se for usar, confirmar a DUM nos exames de pré-natal (USG precoce).</li>
           </ol>
         </div>
       `);
@@ -3426,7 +3502,7 @@ function renderPlanoAcao(cenarioId, categoria, qualidade, dataParto, protetivo) 
   // ===========================================================
   // SEÇÃO ADICIONAL: COMPLEMENTAÇÃO DE COMPETÊNCIAS ABAIXO DO MÍNIMO
   // ===========================================================
-  const vinculos = coletarVinculos();
+  const vinculos = coletarVinculos().filter(v => v.inicio <= dataParto);
 
   // ===========================================================
   // SITUAÇÃO NO PARTO EM DÚVIDA — vale para qualquer cenário
@@ -3496,7 +3572,8 @@ function renderPlanoAcao(cenarioId, categoria, qualidade, dataParto, protetivo) 
 function renderFinanceiro(cenarioId, categoria, fatoGerador, qualidade, protetivo, dataParto) {
   // Não exibir bloco financeiro se a cliente claramente não tem direito (B e F sem plano)
   // mas SEMPRE mostrar quanto ela vai receber, para fortalecer o argumento de planejamento
-  const fin = calcularResultadoFinanceiro(categoria, fatoGerador);
+  const fin = calcularResultadoFinanceiro(categoria, fatoGerador, dataParto);
+  const passado = partoJaOcorreu(dataParto);
   const pNome = primeiroNome();
   let blocos = [];
 
@@ -3576,12 +3653,23 @@ function renderFinanceiro(cenarioId, categoria, fatoGerador, qualidade, protetiv
     </div>
   `;
 
+  // Fato gerador passado: valores da época (sem correção) e prescrição quinquenal.
+  let notaPassado = '';
+  if (passado) {
+    const prescreve = addMeses(dataParto, 60);
+    notaPassado = `
+    <div class="nota-isencao" style="background:var(--amber-soft);border-color:var(--amber);color:var(--text)">
+      <strong>⚠ Fato gerador passado:</strong> valores calculados com o salário mínimo vigente em ${formatDate(dataParto)} (${formatBRL(fin.valorMensal)}), <strong>sem correção monetária</strong>. Parcelas vencidas há mais de 5 anos da data do requerimento prescrevem (art. 103, parágrafo único, da Lei 8.213/91) — neste caso as primeiras parcelas começam a prescrever por volta de <strong>${formatDate(prescreve)}</strong>. Se houver direito, requerer antes disso.
+    </div>`;
+  }
+
   blocos.push(`
     <div class="financeiro-bloco recebimento">
-      <h3>💰 Quanto ${pNome} vai receber</h3>
+      <h3>💰 ${passado && !qualidade.temQualidade ? `Valor de referência (só se o direito de ${pNome} vier a ser comprovado)` : `Quanto ${pNome} vai receber`}</h3>
       ${linhasRecebimento.join('')}
+      ${notaPassado}
       ${notaExtra}
-      ${notaIRRF}
+      ${passado ? '' : notaIRRF}
     </div>
   `);
 
@@ -3595,7 +3683,7 @@ function renderFinanceiro(cenarioId, categoria, fatoGerador, qualidade, protetiv
   if (['D', 'E'].includes(cenarioId) && protetivo && !protetivo.isenta && protetivo.faltam > 0) {
     contribFaltam = protetivo.faltam;
     motivoInvestimento = `Para blindar contra eventual retorno da regra antiga (10 contribuições no total — art. 25, III), ${pNome} precisa cumprir mais <strong>${contribFaltam} contribuição(ões)</strong> ao INSS antes do parto. Pela regra atual do STF, ela já tem direito ao SM, mas a blindagem protege contra mudança regulatória. Veja as opções:`;
-  } else if (cenarioId === 'B') {
+  } else if (cenarioId === 'B' && !passado) {
     // Cenário B: parto em 2026, basta 1 contribuição para qualidade
     contribFaltam = 1;
     motivoInvestimento = `Para recuperar a qualidade de segurada, ${pNome} precisa fazer <strong>1 contribuição</strong> em dia. Pela regra atual do STF (ADIs 2.110 e 2.111), com a qualidade recuperada ela já tem direito ao salário-maternidade — sem necessidade de carência. Veja as opções:`;
@@ -3747,7 +3835,7 @@ function renderDetalhesTecnicos(categoria, qualidade, dataParto, contribTotal, d
   if (!qualidade.temQualidade && categoria !== 'especial' && qualidade.fimGraca) {
     const gestacaoIniciada = addMeses(dataParto, -9);
     if (gestacaoIniciada <= qualidade.fimGraca) {
-      fundamentos.push('TNU, Tema 220 (PEDILEF 0501066-93.2018.4.05.8404, j. 18/12/2020) — gestação iniciada no período de graça mantém qualidade de segurada até o parto.');
+      fundamentos.push('Gestação iniciada no período de graça — hipótese sem tese vinculante cadastrada; pesquisar precedente com fonte completa antes de sustentar.');
     }
   }
   if (duplo) {
@@ -3984,7 +4072,7 @@ function gerarPDFInterno() {
       <table style="width:100%;font-size:10pt;border-collapse:collapse;">
         <tr><td style="padding:3px 0;color:#4a4a52;width:40%;">Cliente:</td><td style="padding:3px 0;font-weight:bold;">${a.nomeCliente}</td></tr>
         <tr><td style="padding:3px 0;color:#4a4a52;">Categoria:</td><td style="padding:3px 0;">${categoriaLabel}</td></tr>
-        <tr><td style="padding:3px 0;color:#4a4a52;">Fato gerador:</td><td style="padding:3px 0;">${a.fatoGerador === 'parto' ? 'Parto' : 'Adoção'} previsto para ${dataPartoBR}</td></tr>
+        <tr><td style="padding:3px 0;color:#4a4a52;">Fato gerador:</td><td style="padding:3px 0;">${a.fatoGerador === 'parto' ? 'Parto' : 'Adoção'} ${partoJaOcorreu(a.dataParto) ? 'ocorrido em' : 'previsto para'} ${dataPartoBR}</td></tr>
         <tr><td style="padding:3px 0;color:#4a4a52;">Vínculos analisados:</td><td style="padding:3px 0;">${a.vinculos.length}</td></tr>
       </table>
     </div>
@@ -4020,7 +4108,9 @@ function gerarPDFCliente() {
   const cenarioId = classificarCenario(duplo, q, a.protetivo);
 
   const isAdocao = a.fatoGerador === 'adocao';
-  const dataLabel = isAdocao ? 'a data prevista da guarda' : 'a data prevista do parto';
+  const dataLabel = partoJaOcorreu(a.dataParto)
+    ? (isAdocao ? 'a data da guarda' : 'a data do parto')
+    : (isAdocao ? 'a data prevista da guarda' : 'a data prevista do parto');
 
   let mensagemSituacao = '';
   let proximosPassos = [];
@@ -4032,6 +4122,14 @@ function gerarPDFCliente() {
       'Quando o bebê nascer, é só nos avisar — <strong>a gente toma conta a partir daí</strong>.',
       'Vamos protocolar o requerimento no INSS pelo escritório.',
       'Vamos acompanhar o andamento do processo do começo ao fim, te mantendo informada.'
+    ];
+  } else if (cenarioId === 'B' && partoJaOcorreu(a.dataParto)) {
+    // Parto passado sem qualidade: não prometer nada nem orientar contribuição.
+    mensagemSituacao = `Analisamos o seu histórico no INSS. Pelo que consta no seu extrato (CNIS), <strong>na data do nascimento você não estava mais coberta pelo INSS</strong>, o que hoje impede o salário-maternidade. Antes de concluir, precisamos conferir se existe algum trabalho ou situação que não aparece no extrato e que pode mudar esse resultado.`;
+    proximosPassos = [
+      'Separar a carteira de trabalho (inclusive a digital) e qualquer comprovante de trabalho do período entre o seu último emprego e o nascimento.',
+      'Informar se você recebeu seguro-desemprego depois do último emprego.',
+      'Com esses documentos, nossa equipe refaz a análise e te dá a resposta definitiva.'
     ];
   } else if (cenarioId === 'B') {
     mensagemSituacao = `Sua situação previdenciária tem um detalhe que precisa de atenção, mas <strong>fica tranquila — é totalmente resolvível, e nós vamos cuidar disso para você</strong>. Nossa equipe vai te orientar exatamente o que fazer para garantir o seu direito ao salário-maternidade. Você está em boas mãos: vamos acompanhar cada etapa e cuidar de toda a parte burocrática junto ao INSS.`;
