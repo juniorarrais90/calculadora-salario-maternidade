@@ -1105,13 +1105,15 @@
   <footer>
     <strong>ARRAIS ADVOGADOS · OAB/MG 19.391</strong> · Ferramenta de uso interno · Não substitui análise jurídica individualizada<br>
     Base normativa: Lei 8.213/91 · Lei 8.212/91 · IN PRES/INSS 128/2022 · STF, ADIs 2.110 e 2.111 (Rel. Min. Nunes Marques) · IN PRES/INSS 188/2025<br>
-    <span style="opacity:0.6">v3.8.2 · setembro/2026</span>
+    <span style="opacity:0.6">v3.9.0 · setembro/2026</span>
   </footer>
 </div>
 
 <script>
 // =====================================================================
-// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.8.2
+// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.9.0
+// v3.9.0 (22/09/2026): contribuição de CI/facultativa/MEI paga DEPOIS do fato gerador deixa de
+// manter ou recuperar a qualidade (data de pagamento do CNIS agora é lida). Caso Maria Letícia.
 // v3.8.2 (15/09/2026): o fato gerador passa a ser a régua — vínculos, benefícios e
 //   competências abaixo do piso POSTERIORES ao parto deixam de entrar na análise
 //   (um vínculo em aberto de 2026 abria período de graça e salvava parto de 2021);
@@ -1820,7 +1822,7 @@ function parseRemuneracoesCNIS(texto) {
   const VALOR = '(?:\\d{1,3}(?:\\.\\d{3})+|\\d+),\\d{2}';
   const re = new RegExp(
     '(?<![\\d\\/])(\\d{2})\\/(\\d{4})(?!\\/)' +           // competência MM/AAAA (não parte de DD/MM/AAAA)
-    '(?:\\s+\\d{2}\\/\\d{2}\\/\\d{4})?' +                 // data de pagamento (blocos de CI)
+    '(?:\\s+(\\d{2}\\/\\d{2}\\/\\d{4}))?' +               // data de pagamento (blocos de CI)
     '\\s+(' + VALOR + ')' +                               // remuneração ou contribuição
     '(?:\\s+(' + VALOR + '))?' +                          // salário de contribuição (blocos de CI)
     '((?:\\s+[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)*)',           // indicadores (IREM-INDPEND, PSC-MEN-SM-EC103...)
@@ -1833,13 +1835,14 @@ function parseRemuneracoesCNIS(texto) {
     while ((m = re.exec(linha)) !== null) {
       const mes = parseInt(m[1], 10), ano = parseInt(m[2], 10);
       if (mes < 1 || mes > 12 || ano < 1990 || ano > anoMax) continue;
-      const valor = valorBRparaNumero(m[4] || m[3]);
+      const valor = valorBRparaNumero(m[5] || m[4]);
       if (!isFinite(valor)) continue;
-      const indicadores = (m[5] || '').trim().split(/\s+/).filter(Boolean);
+      const indicadores = (m[6] || '').trim().split(/\s+/).filter(Boolean);
       const chave = chaveCompetencia(ano, mes);
-      const atual = mapa.get(chave) || { ano, mes, valor: 0, indicadores: new Set(), ocorrencias: 0 };
+      const atual = mapa.get(chave) || { ano, mes, valor: 0, indicadores: new Set(), ocorrencias: 0, pagamentos: [] };
       atual.valor += valor;
       atual.ocorrencias += 1;
+      if (m[3]) { const dp = parseDate(m[3]); if (dp) atual.pagamentos.push(dp); }
       indicadores.forEach(i => atual.indicadores.add(i));
       mapa.set(chave, atual);
     }
@@ -1884,6 +1887,54 @@ function recortarPisoPeloFatoGerador(dataParto) {
   window.__abaixoMinimoCNIS = todas.filter(c => c.ano * 12 + (c.mes - 1) <= limite);
 }
 
+// ====================================================================
+// DATA DE PAGAMENTO × FATO GERADOR — v3.9.0
+// ====================================================================
+// Recolhimento de CI/facultativa/MEI feito DEPOIS do fato gerador não serve
+// para manter nem recuperar a qualidade de segurada naquele pedido. Para a
+// facultativa, a filiação decorre da inscrição formalizada com o pagamento da
+// primeira contribuição, e o atraso só é admitido se não houve perda da
+// qualidade (art. 11, §§ 3º e 4º, do Decreto 3.048/99). Antes desta versão a
+// ferramenta lia a data de pagamento e a descartava: o bloco "Facultativo
+// 01/07/2025 a 30/09/2025", todo pago em 08/10/2025, aparecia como
+// contribuição ativa num parto de 15/08/2025 (caso Maria Letícia).
+window.__pagasAposFato = [];
+
+function competenciaPagaAposFato(ano, mes) {
+  if (window.__simularComplementacao) return false;
+  return (window.__pagasAposFato || []).some(c => c.ano === ano && c.mes === mes);
+}
+
+function ajustarVinculosPelaDataDePagamento(vinculos, dataParto) {
+  window.__pagasAposFato = [];
+  const mapa = window.__remuneracoesCNIS;
+  if (!mapa || !mapa.size) return vinculos;
+  const limiteParto = dataParto.getFullYear() * 12 + dataParto.getMonth();
+  const saida = [];
+  vinculos.forEach(v => {
+    if (!['ci', 'facultativo', 'mei'].includes(v.tipo) || !v.inicio || !v.fim) { saida.push(v); return; }
+    const ini = v.inicio.getFullYear() * 12 + v.inicio.getMonth();
+    const fimIdx = Math.min(v.fim.getFullYear() * 12 + v.fim.getMonth(), limiteParto);
+    let ultimaValida = -1, algumaPagaAntes = false, descartadas = 0;
+    for (let cur = ini; cur <= fimIdx; cur++) {
+      const ano = Math.floor(cur / 12), mes = (cur % 12) + 1;
+      const r = mapa.get(chaveCompetencia(ano, mes));
+      const pags = r && r.pagamentos && r.pagamentos.length ? r.pagamentos : null;
+      if (!pags) { ultimaValida = cur; continue; } // sem data lida: não se presume atraso
+      const primeiro = pags.reduce((a, b) => (b < a ? b : a));
+      if (primeiro <= dataParto) { ultimaValida = cur; algumaPagaAntes = true; continue; }
+      descartadas++;
+      window.__pagasAposFato.push({ ano, mes, label: `${String(mes).padStart(2, '0')}/${ano}`, pagamento: primeiro });
+    }
+    if (!descartadas) { saida.push(v); return; }
+    // Nenhuma competência paga até o fato gerador: o recolhimento some da análise.
+    if (ultimaValida < 0 || (v.tipo === 'facultativo' && !algumaPagaAntes)) return;
+    const novoFim = new Date(Math.floor(ultimaValida / 12), (ultimaValida % 12) + 1, 0);
+    saida.push({ ...v, fim: novoFim, emAberto: false, recuadoPeloPagamento: true, meses: diffMeses(v.inicio, novoFim) });
+  });
+  return saida;
+}
+
 function partoJaOcorreu(dataParto) {
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   return dataParto < hoje;
@@ -1915,7 +1966,8 @@ function contarCompetenciasValidas(inicio, fim) {
   let cur = inicio.getFullYear() * 12 + inicio.getMonth();
   const ult = fim.getFullYear() * 12 + fim.getMonth();
   for (; cur <= ult; cur++) {
-    if (!competenciaAbaixoMinimo(Math.floor(cur / 12), (cur % 12) + 1)) total++;
+    const a = Math.floor(cur / 12), m = (cur % 12) + 1;
+    if (!competenciaAbaixoMinimo(a, m) && !competenciaPagaAposFato(a, m)) total++;
   }
   return total;
 }
@@ -2486,7 +2538,8 @@ function analisar() {
   // ele não influem na qualidade de segurada, na carência nem nas pendências de
   // piso. Sem este recorte, um vínculo em aberto de hoje abria "período de graça"
   // até o ano seguinte e salvava um parto ocorrido anos antes.
-  const vinculos = coletarVinculos().filter(v => v.inicio <= dataParto);
+  const vinculos = ajustarVinculosPelaDataDePagamento(
+    coletarVinculos().filter(v => v.inicio <= dataParto), dataParto);
   recortarPisoPeloFatoGerador(dataParto);
 
   // Parto já ocorrido não admite "Não sei": o CNIS responde como ela estava.
@@ -2611,7 +2664,8 @@ function analisarQualidadeSegurada(categoria, vinculos, dataParto) {
     temQualidade: false, motivo: '', detalhes: [],
     emPeriodoDeGraca: false, fimGraca: null,
     contribTotal: totalContribuicoes(vinculos, dataParto),
-    vinculosRecuados: vinculos.filter(v => v.recuadoPeloPiso || v.semCompetenciaValida)
+    vinculosRecuados: vinculos.filter(v => v.recuadoPeloPiso || v.semCompetenciaValida),
+    pagasAposFato: (window.__pagasAposFato || []).slice()
   };
 
   // REGRA FUNDAMENTAL: se a categoria NA DATA DO PARTO é CLT/doméstica/avulsa,
@@ -2734,9 +2788,13 @@ function analisarQualidadeSegurada(categoria, vinculos, dataParto) {
 
   // O prazo do art. 15 é definido pela filiação que CESSOU, não pela categoria
   // pretendida na data do parto.
+  // Se recolhimentos pagos após o fato gerador foram descartados, a filiação
+  // que de fato cessou é a do vínculo que sobrou — não a categoria declarada
+  // (que costuma refletir o recolhimento descartado).
   const categoriaGraca = ultimoVinculo.tipo === 'beneficio'
     ? 'beneficio'
-    : ($('#categoria_ultimo_vinculo').value || categoria);
+    : ((resultado.pagasAposFato.length && TIPO_PARA_CATEGORIA[ultimoVinculo.tipo])
+       || $('#categoria_ultimo_vinculo').value || categoria);
   // Categoria da filiação imediatamente anterior ao benefício — só para alerta.
   const anteriorAoBeneficio = categoriaGraca === 'beneficio'
     ? (() => {
@@ -3203,16 +3261,25 @@ function renderAtencaoPosEleicao(cenarioId, dataParto) {
 // Sinaliza divergência entre o que foi informado no formulário e o que o
 // histórico contributivo mostra. Não altera o veredicto — obriga conferência.
 function renderAlertaConsistencia(qualidade) {
-  if (!qualidade || !qualidade.alerta) {
-    $('#alerta-consistencia-container').innerHTML = '';
-    return;
-  }
-  $('#alerta-consistencia-container').innerHTML = `
+  let html = '';
+  if (qualidade && qualidade.alerta) {
+    html += `
     <div class="alerta-consistencia">
       <div class="titulo-alerta">⚠ Conferir antes de orientar a cliente</div>
       <p>${qualidade.alerta}</p>
-    </div>
-  `;
+    </div>`;
+  }
+  const tardias = (qualidade && qualidade.pagasAposFato) || [];
+  if (tardias.length) {
+    const linhas = tardias.map(c => `<li>Competência <strong>${c.label}</strong> — paga em <strong>${formatDate(c.pagamento)}</strong>, depois do fato gerador</li>`).join('');
+    html += `
+    <div class="alerta-consistencia">
+      <div class="titulo-alerta">⚠ Contribuições pagas depois do fato gerador foram desconsideradas (${tardias.length})</div>
+      <p>Recolhimento feito após o fato gerador não mantém nem recupera a qualidade de segurada para este pedido. Na segurada facultativa, a filiação só nasce com o pagamento da primeira contribuição, e o atraso só é admitido se não houve perda da qualidade (art. 11, §§ 3º e 4º, do Decreto 3.048/99).</p>
+      <ul>${linhas}</ul>
+    </div>`;
+  }
+  $('#alerta-consistencia-container').innerHTML = html;
 }
 
 // ====== BLOCO 3: EXPLICAÇÃO EM LINGUAGEM NATURAL =========================
