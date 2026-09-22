@@ -481,6 +481,25 @@
     margin: 0 2px;
   }
 
+  .bloco-seguro {
+    background: var(--navy-soft);
+    border-left: 4px solid var(--navy);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  .bloco-seguro .titulo-alerta {
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--navy);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .bloco-seguro ul { margin: 8px 0 0 18px; }
+
   .alerta-consistencia {
     background: #fff4f4;
     border: 2px solid #b3261e;
@@ -1038,6 +1057,16 @@
               </select>
               <div class="hint">Art. 15, § 2º · Súmula 27/TNU · REsp 1.338.295/RS</div>
             </div>
+            <div class="field">
+              <label>Seguro-desemprego: quantas vezes já pediu antes</label>
+              <select id="solicitacoes_seguro">
+                <option value="">Não sei — testar as três réguas</option>
+                <option value="1">Nenhuma vez — esta seria a 1ª solicitação</option>
+                <option value="2">Uma vez — esta seria a 2ª solicitação</option>
+                <option value="3">Duas ou mais — 3ª solicitação em diante</option>
+              </select>
+              <div class="hint">Art. 3º, I, da Lei 7.998/90 · serve para saber se há extrato de seguro-desemprego a buscar como prova do desemprego involuntário</div>
+            </div>
           </div>
           <div id="periodo_graca_preview" style="margin-top: 10px; padding: 10px 14px; background: var(--navy-soft); border-radius: 4px; font-size: 12px; color: var(--navy); display: none;">
             <strong id="graca_preview_text"></strong>
@@ -1083,8 +1112,12 @@
       </div>
 
       <div class="panel">
+// v3.9.2 (22/09/2026): bloco do SEGURO-DESEMPREGO (art. 3º, I, da Lei 7.998/90) — conta os meses
+// de salario antes da dispensa e diz se ha extrato a buscar como prova do desemprego involuntario;
+// quando nao ha direito em nenhuma regua, avisa que a ausencia do seguro nao indica saida voluntaria.
         <div id="resultado-final-container"></div>
         <div id="alerta-consistencia-container"></div>
+        <div id="seguro-desemprego-container"></div>
         <div id="complementacao-container"></div>
         <div id="atencao-container"></div>
         <div id="explicacao-container"></div>
@@ -1105,13 +1138,13 @@
   <footer>
     <strong>ARRAIS ADVOGADOS · OAB/MG 19.391</strong> · Ferramenta de uso interno · Não substitui análise jurídica individualizada<br>
     Base normativa: Lei 8.213/91 · Lei 8.212/91 · IN PRES/INSS 128/2022 · STF, ADIs 2.110 e 2.111 (Rel. Min. Nunes Marques) · IN PRES/INSS 188/2025<br>
-    <span style="opacity:0.6">v3.9.1 · setembro/2026</span>
+    <span style="opacity:0.6">v3.9.2 · setembro/2026</span>
   </footer>
 </div>
 
 <script>
 // =====================================================================
-// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.9.1
+// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.9.2
 // v3.9.1 (22/09/2026): recolhimento EM ATRASO de CI/facultativa/MEI so vale se a segurada ainda
 // mantinha a qualidade no dia do pagamento (art. 11, §§ 3º e 4º, do Decreto 3.048/99); atraso
 // anterior a primeira contribuicao sem atraso nao conta carencia (art. 27, II, da Lei 8.213/91).
@@ -2007,6 +2040,71 @@ function ajustarVinculosPelaDataDePagamento(vinculos, dataParto) {
     if (novoFim >= fimAtual) return v;
     return { ...v, fim: novoFim, emAberto: false, recuadoPeloPagamento: true, fimOriginal: v.fimOriginal || v.fim, meses: diffMeses(v.inicio, novoFim) };
   });
+}
+
+// ====================================================================
+// SEGURO-DESEMPREGO — art. 3º, I, da Lei 7.998/90 (redação da Lei 13.134/2015)
+// ====================================================================
+// Não entra no cálculo do benefício. Serve para a equipe saber se existe
+// extrato de seguro-desemprego a buscar como prova do desemprego involuntário
+// (prorrogação do art. 15, § 2º) — e, principalmente, para não se concluir que
+// a saída foi voluntária só porque não há seguro: quem não alcançava o tempo
+// mínimo nunca poderia tê-lo recebido. Prova por outros meios: Súmula 27/TNU.
+const REGRAS_SEGURO = {
+  '1': { exige: 12, janela: 18, texto: '12 meses de salário nos últimos 18 anteriores à dispensa' },
+  '2': { exige: 9,  janela: 12, texto: '9 meses de salário nos últimos 12 anteriores à dispensa' },
+  '3': { exige: 6,  janela: 6,  texto: 'salário em cada um dos 6 meses imediatamente anteriores à dispensa' }
+};
+
+function analiseSeguroDesemprego(vinculos, dataParto) {
+  const empregos = vinculos.filter(v => ['empregado', 'domestica', 'avulso'].includes(v.tipo)
+    && v.inicio && !v.emAberto && (v.fimOriginal || v.fim) < dataParto);
+  if (!empregos.length) return null;
+  const ultimo = empregos.reduce((a, b) => ((b.fimOriginal || b.fim) > (a.fimOriginal || a.fim) ? b : a));
+  const dispensa = ultimo.fimOriginal || ultimo.fim;
+  const idxDispensa = dispensa.getFullYear() * 12 + dispensa.getMonth();
+  const comEmprego = (idx) => {
+    const inicioMes = new Date(Math.floor(idx / 12), idx % 12, 1);
+    const fimMes = new Date(Math.floor(idx / 12), (idx % 12) + 1, 0);
+    return empregos.some(v => v.inicio <= fimMes && (v.fimOriginal || v.fim) >= inicioMes);
+  };
+  const contar = (janela) => {
+    let n = 0;
+    for (let i = idxDispensa - janela + 1; i <= idxDispensa; i++) if (comEmprego(i)) n++;
+    return n;
+  };
+  const meses = { '1': contar(18), '2': contar(12), '3': contar(6) };
+  const atende = {};
+  Object.keys(REGRAS_SEGURO).forEach(k => { atende[k] = meses[k] >= REGRAS_SEGURO[k].exige; });
+  return { dispensa, empregador: ultimo.empregador, meses, atende, meses36: contar(36),
+    nenhuma: !atende['1'] && !atende['2'] && !atende['3'] };
+}
+
+function renderSeguroDesemprego(categoria, vinculos, dataParto) {
+  const alvo = $('#seguro-desemprego-container');
+  if (!alvo) return;
+  alvo.innerHTML = '';
+  // Só interessa quando a qualidade depende do período de graça de um emprego encerrado.
+  if (['empregada', 'domestica', 'avulsa', 'especial', 'beneficio'].includes(categoria)) return;
+  const s = analiseSeguroDesemprego(vinculos, dataParto);
+  if (!s) return;
+  const escolha = $('#solicitacoes_seguro')?.value || '';
+  const rotulo = { '1': '1ª solicitação', '2': '2ª solicitação', '3': '3ª solicitação em diante' };
+  const linhas = Object.keys(REGRAS_SEGURO)
+    .filter(k => !escolha || k === escolha)
+    .map(k => `<li><strong>${rotulo[k]}</strong> — exige ${REGRAS_SEGURO[k].texto}. A cliente tem <strong>${s.meses[k]}</strong> ${s.meses[k] === 1 ? 'mês' : 'meses'} na janela: ${s.atende[k] ? 'atende' : 'não atende'}.</li>`)
+    .join('');
+  const nenhumaNaEscolha = escolha ? !s.atende[escolha] : s.nenhuma;
+  const conclusao = nenhumaNaEscolha
+    ? `<p><strong>Não há extrato de seguro-desemprego a procurar${escolha ? '' : ' em nenhuma das três réguas'}.</strong> A ausência do benefício <strong>não indica saída voluntária</strong> — ela só reflete tempo de vínculo insuficiente. O desemprego involuntário pode ser provado por outros meios (Súmula 27/TNU): termo de rescisão, aviso prévio, extrato do FGTS com saque por dispensa sem justa causa, CAGED. Atenção: o STJ (Pet 7.115/PR, 3ª Seção, Rel. Min. Napoleão Nunes Maia Filho, j. 10/03/2010) firmou que a simples ausência de anotação na CTPS, isolada, não comprova o desemprego.</p>`
+    : `<p><strong>Buscar o extrato do seguro-desemprego</strong> (gov.br / Carteira de Trabalho Digital). Se houve recebimento, é a prova mais forte do desemprego involuntário e sustenta a prorrogação de 12 meses do art. 15, § 2º, da Lei 8.213/91.</p>`;
+  alvo.innerHTML = `
+    <div class="bloco-seguro">
+      <div class="titulo-alerta">Seguro-desemprego — prova do desemprego involuntário</div>
+      <p>Último emprego encerrado em <strong>${formatDate(s.dispensa)}</strong> (${s.empregador}).${escolha ? '' : ' Como não foi informado quantas vezes a cliente já pediu seguro-desemprego, seguem as três réguas do art. 3º, I, da Lei 7.998/90.'}</p>
+      <ul>${linhas}</ul>
+      ${conclusao}
+    </div>`;
 }
 
 function partoJaOcorreu(dataParto) {
@@ -3187,6 +3285,7 @@ function renderizar(categoria, fatoGerador, dataParto, qualidade, contribTotal, 
   const comp = window.__analiseAtual && window.__analiseAtual.complementacao;
   renderResultadoFinal(cenarioId, dataParto, qualidade, comp);
   renderAlertaConsistencia(qualidade);
+  renderSeguroDesemprego(categoria, (window.__analiseAtual && window.__analiseAtual.vinculos) || [], dataParto);
   renderComplementacao(comp, categoria, qualidade, protetivo, contribTotal);
   renderAtencaoPosEleicao(cenarioId, dataParto);
   renderExplicacao(cenarioId, categoria, qualidade, dataParto, protetivo);
@@ -4121,6 +4220,8 @@ function abrirJanelaPDF(titulo, conteudoHTML, nomeArquivoSugerido) {
       .value.ok { color: #2d7a3e; }
       .value.no { color: #a83232; }
       .alerta-consistencia { background: #fff4f4; border-left: 4px solid #b3261e; padding: 12px 14px; border-radius: 4px; margin-bottom: 14px; }
+      .bloco-seguro { background: #eef2f7; border-left: 4px solid #0D2340; padding: 12px 14px; border-radius: 4px; margin-bottom: 14px; }
+      .bloco-seguro .titulo-alerta { font-weight: bold; text-transform: uppercase; font-size: 11px; color: #0D2340; }
       .alerta-consistencia .titulo-alerta { font-weight: bold; color: #b3261e; text-transform: uppercase; }
       .bloco-complementacao { background: #fdf5e0; border-left: 4px solid #b8860b; padding: 12px 14px; border-radius: 4px; margin-bottom: 14px; font-size: 10pt; }
       .bloco-complementacao .titulo-alerta { font-weight: bold; color: #b8860b; text-transform: uppercase; }
@@ -4185,7 +4286,8 @@ function gerarPDFInterno() {
 
   // Capturar o conteúdo do resultado já renderizado
   const veredicto = $('#resultado-final-container').innerHTML;
-  const alertaConsistencia = $('#alerta-consistencia-container').innerHTML;
+  const alertaConsistencia = $('#alerta-consistencia-container').innerHTML
+    + $('#seguro-desemprego-container').innerHTML;
   const complementacao = $('#complementacao-container').innerHTML;
   const atencao = $('#atencao-container').innerHTML;
   const explicacao = $('#explicacao-container').innerHTML;
