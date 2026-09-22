@@ -1105,13 +1105,16 @@
   <footer>
     <strong>ARRAIS ADVOGADOS · OAB/MG 19.391</strong> · Ferramenta de uso interno · Não substitui análise jurídica individualizada<br>
     Base normativa: Lei 8.213/91 · Lei 8.212/91 · IN PRES/INSS 128/2022 · STF, ADIs 2.110 e 2.111 (Rel. Min. Nunes Marques) · IN PRES/INSS 188/2025<br>
-    <span style="opacity:0.6">v3.9.0 · setembro/2026</span>
+    <span style="opacity:0.6">v3.9.1 · setembro/2026</span>
   </footer>
 </div>
 
 <script>
 // =====================================================================
-// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.9.0
+// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.9.1
+// v3.9.1 (22/09/2026): recolhimento EM ATRASO de CI/facultativa/MEI so vale se a segurada ainda
+// mantinha a qualidade no dia do pagamento (art. 11, §§ 3º e 4º, do Decreto 3.048/99); atraso
+// anterior a primeira contribuicao sem atraso nao conta carencia (art. 27, II, da Lei 8.213/91).
 // v3.9.0 (22/09/2026): contribuição de CI/facultativa/MEI paga DEPOIS do fato gerador deixa de
 // manter ou recuperar a qualidade (data de pagamento do CNIS agora é lida). Caso Maria Letícia.
 // v3.8.2 (15/09/2026): o fato gerador passa a ser a régua — vínculos, benefícios e
@@ -1898,41 +1901,112 @@ function recortarPisoPeloFatoGerador(dataParto) {
 // ferramenta lia a data de pagamento e a descartava: o bloco "Facultativo
 // 01/07/2025 a 30/09/2025", todo pago em 08/10/2025, aparecia como
 // contribuição ativa num parto de 15/08/2025 (caso Maria Letícia).
+// __pagasAposFato: competências de CI/facultativa/MEI descartadas da QUALIDADE
+//   (pagas depois do fato gerador, ou em atraso quando a qualidade já havia
+//   sido perdida — art. 11, §§ 3º e 4º, do Decreto 3.048/99).
+// __semCarencia: competências que valem para qualidade mas NÃO para carência —
+//   recolhimento em atraso de competência anterior à primeira contribuição sem
+//   atraso (art. 27, II, da Lei 8.213/91).
 window.__pagasAposFato = [];
+window.__semCarencia = [];
 
 function competenciaPagaAposFato(ano, mes) {
   if (window.__simularComplementacao) return false;
-  return (window.__pagasAposFato || []).some(c => c.ano === ano && c.mes === mes);
+  return (window.__pagasAposFato || []).some(c => c.ano === ano && c.mes === mes)
+      || (window.__semCarencia || []).some(c => c.ano === ano && c.mes === mes);
+}
+
+// Intervalo de cobertura de um vínculo: do início até o fim do período de graça.
+function coberturaDoVinculo(inicio, fim, categoriaGraca, tinha120, desempregoInvol) {
+  const g = calcularPeriodoDeGraca(fim, tinha120, desempregoInvol, categoriaGraca);
+  return { de: inicio, ate: g.fimGraca };
 }
 
 function ajustarVinculosPelaDataDePagamento(vinculos, dataParto) {
   window.__pagasAposFato = [];
+  window.__semCarencia = [];
   const mapa = window.__remuneracoesCNIS;
   if (!mapa || !mapa.size) return vinculos;
+  const tinha120 = $('#tinha_120')?.value === 'sim';
+  const desempregoInvol = $('#desemprego_involuntario')?.value === 'sim';
   const limiteParto = dataParto.getFullYear() * 12 + dataParto.getMonth();
-  const saida = [];
+
+  // 1) Cobertura de partida: vínculos que não dependem de recolhimento próprio
+  //    (empregada, doméstica, avulsa) e períodos de benefício.
+  const coberturas = [];
   vinculos.forEach(v => {
-    if (!['ci', 'facultativo', 'mei'].includes(v.tipo) || !v.inicio || !v.fim) { saida.push(v); return; }
+    if (['ci', 'facultativo', 'mei'].includes(v.tipo) || v.mantemQualidade === false) return;
+    const fim = v.emAberto ? dataParto : v.fim;
+    coberturas.push(coberturaDoVinculo(v.inicio, fim,
+      v.tipo === 'beneficio' ? 'beneficio' : (TIPO_PARA_CATEGORIA[v.tipo] || 'empregada'),
+      tinha120, desempregoInvol));
+  });
+  const cobertaEm = (data) => coberturas.some(c => data >= c.de && data <= c.ate);
+
+  // 2) Competências de recolhimento próprio, em ordem cronológica. Cada uma é
+  //    julgada pela DATA DE PAGAMENTO: em dia vale sempre; em atraso só vale se,
+  //    no dia do pagamento, a qualidade de segurada ainda estava mantida.
+  const itens = [];
+  vinculos.forEach(v => {
+    if (!['ci', 'facultativo', 'mei'].includes(v.tipo) || !v.inicio || !v.fim) return;
     const ini = v.inicio.getFullYear() * 12 + v.inicio.getMonth();
-    const fimIdx = Math.min(v.fim.getFullYear() * 12 + v.fim.getMonth(), limiteParto);
-    let ultimaValida = -1, algumaPagaAntes = false, descartadas = 0;
+    const fimIdx = Math.min((v.emAberto ? dataParto : v.fim).getFullYear() * 12 + (v.emAberto ? dataParto : v.fim).getMonth(), limiteParto);
     for (let cur = ini; cur <= fimIdx; cur++) {
       const ano = Math.floor(cur / 12), mes = (cur % 12) + 1;
       const r = mapa.get(chaveCompetencia(ano, mes));
       const pags = r && r.pagamentos && r.pagamentos.length ? r.pagamentos : null;
-      if (!pags) { ultimaValida = cur; continue; } // sem data lida: não se presume atraso
-      const primeiro = pags.reduce((a, b) => (b < a ? b : a));
-      if (primeiro <= dataParto) { ultimaValida = cur; algumaPagaAntes = true; continue; }
-      descartadas++;
-      window.__pagasAposFato.push({ ano, mes, label: `${String(mes).padStart(2, '0')}/${ano}`, pagamento: primeiro });
+      itens.push({ idx: cur, ano, mes, label: `${String(mes).padStart(2, '0')}/${ano}`, vinculo: v,
+        pagamento: pags ? pags.reduce((a, b) => (b < a ? b : a)) : null });
     }
-    if (!descartadas) { saida.push(v); return; }
-    // Nenhuma competência paga até o fato gerador: o recolhimento some da análise.
-    if (ultimaValida < 0 || (v.tipo === 'facultativo' && !algumaPagaAntes)) return;
-    const novoFim = new Date(Math.floor(ultimaValida / 12), (ultimaValida % 12) + 1, 0);
-    saida.push({ ...v, fim: novoFim, emAberto: false, recuadoPeloPagamento: true, meses: diffMeses(v.inicio, novoFim) });
   });
-  return saida;
+  itens.sort((a, b) => a.idx - b.idx);
+
+  let primeiraEmDia = null;
+  const validas = new Map(); // vínculo -> última competência válida (idx)
+  itens.forEach(it => {
+    const v = it.vinculo;
+    const catGraca = TIPO_PARA_CATEGORIA[v.tipo] || 'individual';
+    const inicioComp = new Date(it.ano, it.mes - 1, 1);
+    const fimComp = new Date(it.ano, it.mes, 0);
+    const aceitar = () => {
+      coberturas.push(coberturaDoVinculo(inicioComp, fimComp, catGraca, tinha120, desempregoInvol));
+      validas.set(v, Math.max(validas.get(v) ?? -1, it.idx));
+    };
+    // Sem data de pagamento lida (digitação manual, CNIS sem o bloco): não se presume atraso.
+    if (!it.pagamento) { aceitar(); return; }
+    if (it.pagamento > dataParto) {
+      window.__pagasAposFato.push({ ...it, motivo: 'depois do fato gerador', vinculo: undefined });
+      return;
+    }
+    const emDia = it.pagamento <= vencimentoGPS(inicioComp);
+    if (emDia) {
+      if (!primeiraEmDia) primeiraEmDia = it.idx;
+      aceitar();
+      return;
+    }
+    // Em atraso: só aproveita quem ainda era segurada no dia do pagamento.
+    if (!cobertaEm(it.pagamento)) {
+      window.__pagasAposFato.push({ ...it, motivo: 'paga em atraso depois da perda da qualidade', vinculo: undefined });
+      return;
+    }
+    aceitar();
+    // Art. 27, II: atraso de competência anterior à primeira contribuição sem
+    // atraso vale para qualidade, mas não entra na carência.
+    if (primeiraEmDia === null || it.idx < primeiraEmDia) {
+      window.__semCarencia.push({ ...it, motivo: 'atraso anterior à primeira contribuição sem atraso', vinculo: undefined });
+    }
+  });
+
+  // 3) Vínculo de recolhimento próprio recua até a última competência válida.
+  return vinculos.map(v => {
+    if (!['ci', 'facultativo', 'mei'].includes(v.tipo) || !v.inicio || !v.fim) return v;
+    const ult = validas.get(v);
+    if (ult === undefined) return { ...v, mantemQualidade: false, semCompetenciaValida: true, fimOriginal: v.fim };
+    const novoFim = new Date(Math.floor(ult / 12), (ult % 12) + 1, 0);
+    const fimAtual = v.emAberto ? dataParto : v.fim;
+    if (novoFim >= fimAtual) return v;
+    return { ...v, fim: novoFim, emAberto: false, recuadoPeloPagamento: true, fimOriginal: v.fimOriginal || v.fim, meses: diffMeses(v.inicio, novoFim) };
+  });
 }
 
 function partoJaOcorreu(dataParto) {
@@ -2665,7 +2739,8 @@ function analisarQualidadeSegurada(categoria, vinculos, dataParto) {
     emPeriodoDeGraca: false, fimGraca: null,
     contribTotal: totalContribuicoes(vinculos, dataParto),
     vinculosRecuados: vinculos.filter(v => v.recuadoPeloPiso || v.semCompetenciaValida),
-    pagasAposFato: (window.__pagasAposFato || []).slice()
+    pagasAposFato: (window.__pagasAposFato || []).slice(),
+    semCarencia: (window.__semCarencia || []).slice()
   };
 
   // REGRA FUNDAMENTAL: se a categoria NA DATA DO PARTO é CLT/doméstica/avulsa,
@@ -3271,11 +3346,21 @@ function renderAlertaConsistencia(qualidade) {
   }
   const tardias = (qualidade && qualidade.pagasAposFato) || [];
   if (tardias.length) {
-    const linhas = tardias.map(c => `<li>Competência <strong>${c.label}</strong> — paga em <strong>${formatDate(c.pagamento)}</strong>, depois do fato gerador</li>`).join('');
+    const linhas = tardias.map(c => `<li>Competência <strong>${c.label}</strong> — paga em <strong>${formatDate(c.pagamento)}</strong> (${c.motivo})</li>`).join('');
     html += `
     <div class="alerta-consistencia">
-      <div class="titulo-alerta">⚠ Contribuições pagas depois do fato gerador foram desconsideradas (${tardias.length})</div>
-      <p>Recolhimento feito após o fato gerador não mantém nem recupera a qualidade de segurada para este pedido. Na segurada facultativa, a filiação só nasce com o pagamento da primeira contribuição, e o atraso só é admitido se não houve perda da qualidade (art. 11, §§ 3º e 4º, do Decreto 3.048/99).</p>
+      <div class="titulo-alerta">⚠ Contribuições desconsideradas pela data de pagamento (${tardias.length})</div>
+      <p>Recolhimento feito depois do fato gerador não mantém nem recupera a qualidade de segurada para este pedido. E o recolhimento em atraso só aproveita a quem ainda era segurada no dia do pagamento: na facultativa, a filiação só nasce com o pagamento da primeira contribuição e o atraso é vedado depois da perda da qualidade (art. 11, §§ 3º e 4º, do Decreto 3.048/99).</p>
+      <ul>${linhas}</ul>
+    </div>`;
+  }
+  const semCar = (qualidade && qualidade.semCarencia) || [];
+  if (semCar.length) {
+    const linhas = semCar.map(c => `<li>Competência <strong>${c.label}</strong> — paga em <strong>${formatDate(c.pagamento)}</strong>, em atraso</li>`).join('');
+    html += `
+    <div class="alerta-consistencia">
+      <div class="titulo-alerta">⚠ Contribuições em atraso que não entram na carência (${semCar.length})</div>
+      <p>Valem para a qualidade de segurada, mas não para a carência: são recolhimentos em atraso de competências anteriores à primeira contribuição paga sem atraso (art. 27, II, da Lei 8.213/91). Para o salário-maternidade da contribuinte individual, facultativa ou MEI isso só pesa no cenário protetivo, em que a carência volta a ser exigida.</p>
       <ul>${linhas}</ul>
     </div>`;
   }
