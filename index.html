@@ -1038,7 +1038,7 @@
 
         <div style="background: var(--gray-1); padding: 16px 20px; border-radius: 6px; margin-bottom: 18px; border-left: 3px solid var(--navy);">
           <div style="font-size: 12px; color: var(--gray-4); margin-bottom: 12px; line-height: 1.6;">
-            Marque as prorrogações aplicáveis ao caso (<strong>art. 15, §§ 1º e 2º, da Lei 8.213/91</strong>). Cada item adiciona 12 meses ao prazo do inciso II — cumulativos, até 36 meses. Não se aplicam ao prazo de 6 meses da segurada facultativa (art. 15, VI). Em qualquer hipótese soma-se o prazo do § 4º, que desloca a perda para o dia 16 do 2º mês seguinte ao termo.
+            Marque as prorrogações aplicáveis ao caso (<strong>art. 15, §§ 1º e 2º, da Lei 8.213/91</strong>). Cada item adiciona 12 meses ao prazo do inciso II — cumulativos, até 36 meses. Não se aplicam ao prazo de 6 meses da segurada facultativa (art. 15, VI). Em qualquer hipótese soma-se o prazo do § 4º: a perda ocorre no dia seguinte ao vencimento da contribuição do 2º mês seguinte ao termo (dia 15, ou o 1º dia útil depois, se o dia 15 cair em fim de semana ou feriado — art. 30, § 2º, I, da Lei 8.212/91).
           </div>
           <div class="form-grid">
             <div class="field">
@@ -1047,7 +1047,7 @@
                 <option value="nao">Não — segurada NÃO tinha 120+ contribuições</option>
                 <option value="sim">Sim — comprovadas 120+ contribuições sem perda anterior</option>
               </select>
-              <div class="hint">Art. 15, § 1º, Lei 8.213/91</div>
+              <div class="hint">Art. 15, § 1º, Lei 8.213/91 · só vale se as 120 foram pagas <strong>sem interrupção que acarretasse a perda da qualidade</strong> — conferir no CNIS antes de marcar "Sim"</div>
             </div>
             <div class="field">
               <label>+12 meses: desemprego involuntário</label>
@@ -1055,7 +1055,7 @@
                 <option value="nao">Não comprovado / não se aplica</option>
                 <option value="sim">Sim — comprovado (TRCT, CAGED, CTPS, outros meios)</option>
               </select>
-              <div class="hint">Art. 15, § 2º · Súmula 27/TNU · REsp 1.338.295/RS</div>
+              <div class="hint">Art. 15, § 2º · Tema 1.360/STJ (repetitivo, 2026) · Súmula 27/TNU · só a falta de anotação na CTPS/CNIS não basta</div>
             </div>
             <div class="field">
               <label>Seguro-desemprego: quantas vezes já pediu antes</label>
@@ -1066,6 +1066,21 @@
                 <option value="3">Duas ou mais — 3ª solicitação em diante</option>
               </select>
               <div class="hint">Art. 3º, I, da Lei 7.998/90 · serve para saber se há extrato de seguro-desemprego a buscar como prova do desemprego involuntário</div>
+            </div>
+            <div class="field">
+              <label>Situação especial depois do último vínculo (art. 15, III a V)</label>
+              <select id="situacao_especial">
+                <option value="">Nenhuma (regra geral)</option>
+                <option value="segregacao">Doença de segregação compulsória — 12 meses após cessar a segregação (III)</option>
+                <option value="reclusao">Presa (retida ou reclusa) — 12 meses após o livramento (IV)</option>
+                <option value="militar">Serviço militar obrigatório — 3 meses após o licenciamento (V)</option>
+              </select>
+              <div class="hint">Raro, mas muda a data: o prazo conta do fim da situação, não da última contribuição. Sem as prorrogações dos §§ 1º e 2º.</div>
+            </div>
+            <div class="field" id="field_data_situacao_especial" style="display:none">
+              <label>Data do fim da situação</label>
+              <input type="date" id="data_situacao_especial">
+              <div class="hint">Fim da segregação, data do livramento ou do licenciamento. Se a situação ainda durava no parto, informe uma data posterior ao parto.</div>
             </div>
           </div>
           <div id="periodo_graca_preview" style="margin-top: 10px; padding: 10px 14px; background: var(--navy-soft); border-radius: 4px; font-size: 12px; color: var(--navy); display: none;">
@@ -1135,13 +1150,18 @@
   <footer>
     <strong>ARRAIS ADVOGADOS · OAB/MG 19.391</strong> · Ferramenta de uso interno · Não substitui análise jurídica individualizada<br>
     Base normativa: Lei 8.213/91 · Lei 8.212/91 · IN PRES/INSS 128/2022 · STF, ADIs 2.110 e 2.111 (Rel. Min. Nunes Marques) · IN PRES/INSS 188/2025<br>
-    <span style="opacity:0.6">v3.9.3 · novembro/2026</span>
+    <span style="opacity:0.6">v3.9.4 · novembro/2026</span>
   </footer>
 </div>
 
 <script>
 // =====================================================================
-// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.9.3
+// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.9.4
+// v3.9.4 (13/11/2026): (1) art. 15, III a V (segregação compulsória, prisão, serviço militar), contados do fim
+//   da situação; (2) § 4º com dia útil — se o dia 15 não tem expediente bancário, o vencimento vai para o dia útil
+//   seguinte (art. 30, II e § 2º, I, da Lei 8.212/91); (3) soma de meses sem estourar o dia (31/08 + 6 = 28/02);
+//   (4) aviso de que as 120 contribuições precisam ser "sem interrupção que acarrete a perda"; (5) Tema 1.360/STJ
+//   (prova do desemprego) nas citações. Fontes conferidas no Planalto, no STJ (notícia de 16/07/2026, SCON) e na TNU.
 // v3.9.3 (13/11/2026): o quadro do resultado mostra a DATA em que a qualidade de segurada vai (ou foi) até —
 //   fim do período de graça, já com o art. 15, § 4º (pedido da Ana Germano / Yuri: "não fala data"). Também
 //   tira da tela o comentário da v3.9.2, que tinha ficado no HTML e aparecia acima do resultado.
@@ -1261,7 +1281,7 @@ function atualizarPreviewGraca() {
   } else if (tinha120 || desempInv) {
     composicao += ' — §§ 1º e 2º não prorrogam o prazo do facultativo';
   }
-  composicao += '. Somado o art. 15, § 4º: proteção até o dia 15 do 2º mês seguinte ao termo.';
+  composicao += '. Somado o art. 15, § 4º: proteção até o dia 15 do 2º mês seguinte ao termo (ou o 1º dia útil depois).';
 
   preview.style.display = 'block';
   preview.style.background = 'var(--navy-soft)';
@@ -1374,6 +1394,10 @@ $('#categoria_ultimo_vinculo').addEventListener('change', alternarCampoEspecie);
 $('#categoria').addEventListener('change', alternarCampoEspecie);
 $('#categoria_ultimo_vinculo').addEventListener('change', atualizarPreviewGraca);
 $('#tinha_120').addEventListener('change', atualizarPreviewGraca);
+// Art. 15, III a V (v3.9.4): a data só aparece quando há situação especial.
+$('#situacao_especial').addEventListener('change', () => {
+  $('#field_data_situacao_especial').style.display = $('#situacao_especial').value ? '' : 'none';
+});
 $('#desemprego_involuntario').addEventListener('change', atualizarPreviewGraca);
 
 // ----- TABS -----------------------------------------------
@@ -2099,7 +2123,7 @@ function renderSeguroDesemprego(categoria, vinculos, dataParto) {
     .join('');
   const nenhumaNaEscolha = escolha ? !s.atende[escolha] : s.nenhuma;
   const conclusao = nenhumaNaEscolha
-    ? `<p><strong>Não há extrato de seguro-desemprego a procurar${escolha ? '' : ' em nenhuma das três réguas'}.</strong> A ausência do benefício <strong>não indica saída voluntária</strong> — ela só reflete tempo de vínculo insuficiente. O desemprego involuntário pode ser provado por outros meios (Súmula 27/TNU): termo de rescisão, aviso prévio, extrato do FGTS com saque por dispensa sem justa causa, CAGED. Atenção: o STJ (Pet 7.115/PR, 3ª Seção, Rel. Min. Napoleão Nunes Maia Filho, j. 10/03/2010) firmou que a simples ausência de anotação na CTPS, isolada, não comprova o desemprego.</p>`
+    ? `<p><strong>Não há extrato de seguro-desemprego a procurar${escolha ? '' : ' em nenhuma das três réguas'}.</strong> A ausência do benefício <strong>não indica saída voluntária</strong> — ela só reflete tempo de vínculo insuficiente. O desemprego involuntário pode ser provado por outros meios (Súmula 27/TNU): termo de rescisão, aviso prévio, extrato do FGTS com saque por dispensa sem justa causa, CAGED. Atenção: o STJ, no Tema 1.360 (repetitivo, 2026), firmou que a simples ausência de anotação na CTPS e/ou no CNIS, isolada, não comprova o desemprego — é preciso prova de ausência de renda e de busca de trabalho (no mesmo sentido, Pet 7.115/PR, 3ª Seção, Rel. Min. Napoleão Nunes Maia Filho, j. 10/03/2010).</p>`
     : `<p><strong>Buscar o extrato do seguro-desemprego</strong> (gov.br / Carteira de Trabalho Digital). Se houve recebimento, é a prova mais forte do desemprego involuntário e sustenta a prorrogação de 12 meses do art. 15, § 2º, da Lei 8.213/91.</p>`;
   alvo.innerHTML = `
     <div class="bloco-seguro">
@@ -2286,9 +2310,32 @@ function diffMeses(d1, d2) {
 }
 
 function addMeses(d, n) {
-  const r = new Date(d);
-  r.setMonth(r.getMonth() + n);
-  return r;
+  // Sem estourar o dia (v3.9.4): 31/08 + 6 meses = 28/02, e não 03/03 (que jogava a perda um mês adiante).
+  const alvo = new Date(d.getFullYear(), d.getMonth() + n, 1);
+  const ultimo = new Date(alvo.getFullYear(), alvo.getMonth() + 1, 0).getDate();
+  return new Date(alvo.getFullYear(), alvo.getMonth(), Math.min(d.getDate(), ultimo));
+}
+
+// Feriados nacionais sem expediente bancário (v3.9.4). Pascoa pelo algoritmo de Meeus.
+function feriadosBancarios(ano) {
+  const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100, d = Math.floor(b / 4), e = b % 4;
+  const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+  const pascoa = new Date(ano, mes - 1, dia);
+  const rel = (n) => new Date(ano, pascoa.getMonth(), pascoa.getDate() + n);
+  const datas = [new Date(ano, 0, 1), rel(-48), rel(-47), rel(-2), new Date(ano, 3, 21), new Date(ano, 4, 1), rel(60),
+    new Date(ano, 8, 7), new Date(ano, 9, 12), new Date(ano, 10, 2), new Date(ano, 10, 15), new Date(ano, 11, 25)];
+  if (ano >= 2024) datas.push(new Date(ano, 10, 20)); // Consciência Negra, feriado nacional (Lei 14.759/2023)
+  return new Set(datas.map(x => x.toDateString()));
+}
+
+// Vencimento da contribuição do contribuinte individual/facultativo: dia 15 do mês seguinte à competência,
+// e, sem expediente bancário, o dia útil imediatamente posterior (art. 30, II e § 2º, I, da Lei 8.212/91).
+function vencimentoDia15(ano, mesIndice) {
+  const d = new Date(ano, mesIndice, 15);
+  while (d.getDay() === 0 || d.getDay() === 6 || feriadosBancarios(d.getFullYear()).has(d.toDateString())) d.setDate(d.getDate() + 1);
+  return d;
 }
 
 function formatDate(d) {
@@ -2326,7 +2373,7 @@ function ultimoDiaDoMes(d) {
 
 function vencimentoGPS(competencia) {
   // GPS vence dia 15 do mês SEGUINTE à competência
-  return new Date(competencia.getFullYear(), competencia.getMonth() + 1, 15);
+  return vencimentoDia15(competencia.getFullYear(), competencia.getMonth() + 1);
 }
 
 function competenciasPagaveisAteParto(dataParto, hoje) {
@@ -2619,7 +2666,8 @@ function coletarVinculos() {
 // o prazo do facultativo.
 // § 4º: a perda da qualidade só ocorre no dia seguinte ao término do prazo de
 // recolhimento da contribuição do mês seguinte ao final do período — ou seja,
-// no dia 16 do 2º mês seguinte. A qualidade fica mantida até o dia 15 desse mês.
+// no dia 16 do 2º mês seguinte. A qualidade fica mantida até o dia 15 desse mês — ou até o 1º dia útil
+// seguinte, se o dia 15 não tiver expediente bancário (art. 30, § 2º, I, da Lei 8.212/91; v3.9.4).
 // categoriaAnterior: quando a última situação previdenciária foi o GOZO DE
 // BENEFÍCIO, informa a categoria em que a segurada estava filiada antes dele.
 // Serve apenas para acionar o alerta de controvérsia (facultativa -> benefício).
@@ -2642,7 +2690,8 @@ function calcularPeriodoDeGraca(dataUltimoVinculo, tinha120, desempregoInvol, ca
     if (desempregoInvol) { meses += 12; prorrogacoes.push('+12 meses — desemprego involuntário (art. 15, § 2º)'); }
   }
   const termo = addMeses(dataUltimoVinculo, meses);
-  const fimGraca = new Date(termo.getFullYear(), termo.getMonth() + 2, 15);
+  // § 4º: perda no dia seguinte ao vencimento da contribuição do mês seguinte ao termo (dia 15, ou o 1º dia útil depois).
+  const fimGraca = vencimentoDia15(termo.getFullYear(), termo.getMonth() + 2);
   return {
     meses, termo, fimGraca, prorrogacoes, ehBeneficio,
     controversiaFacultativaBeneficio,
@@ -2981,6 +3030,27 @@ function analisarQualidadeSegurada(categoria, vinculos, dataParto) {
       })()
     : null;
   const graca = calcularPeriodoDeGraca(dataFimUltimo, tinha120, desempregoInvol, categoriaGraca, anteriorAoBeneficio);
+  // Art. 15, III a V (v3.9.4): segregação compulsória, prisão e serviço militar. O prazo conta do FIM da situação
+  // (12, 12 e 3 meses), sem as prorrogações dos §§ 1º e 2º, com o § 4º. Vale o que terminar depois: regra geral ou especial.
+  const situacaoEsp = $('#situacao_especial') ? $('#situacao_especial').value : '';
+  const dataEsp = situacaoEsp ? parseDate($('#data_situacao_especial').value) : null;
+  if (situacaoEsp && dataEsp) {
+    const ESP = {
+      segregacao: { meses: 12, rotulo: 'cessação da segregação compulsória', inciso: 'III' },
+      reclusao: { meses: 12, rotulo: 'livramento', inciso: 'IV' },
+      militar: { meses: 3, rotulo: 'licenciamento do serviço militar', inciso: 'V' },
+    }[situacaoEsp];
+    if (dataEsp >= dataParto) {
+      resultado.temQualidade = true;
+      resultado.motivo = `Na data do parto a situação do art. 15, ${ESP.inciso}, da Lei 8.213/91 ainda durava (${ESP.rotulo} só em ${formatDate(dataEsp)}): a qualidade de segurada está mantida independentemente de contribuições. Conferir a prova da situação.`;
+      return resultado;
+    }
+    const termoEsp = addMeses(dataEsp, ESP.meses);
+    const fimEsp = vencimentoDia15(termoEsp.getFullYear(), termoEsp.getMonth() + 2);
+    if (fimEsp > graca.fimGraca) {
+      Object.assign(graca, { fimGraca: fimEsp, meses: ESP.meses, termo: termoEsp, especial: ESP, dataEspecial: dataEsp, ehBeneficio: false });
+    }
+  }
   resultado.fimGraca = graca.fimGraca;
   resultado.mesesGraca = graca.meses;
   resultado.termoGraca = graca.termo;
@@ -3001,12 +3071,14 @@ function analisarQualidadeSegurada(categoria, vinculos, dataParto) {
   if (dataParto <= graca.fimGraca) {
     resultado.temQualidade = true;
     resultado.emPeriodoDeGraca = true;
-    const origemGraca = graca.ehBeneficio
+    const origemGraca = graca.especial
+      ? `do ${graca.especial.rotulo} em ${formatDate(graca.dataEspecial)} (art. 15, ${graca.especial.inciso}, da Lei 8.213/91)`
+      : graca.ehBeneficio
       ? `da CESSAÇÃO DO BENEFÍCIO em ${formatDate(dataFimUltimo)} (${ultimoVinculo.empregador}) — durante o gozo a qualidade já estava mantida pelo art. 15, I, independentemente de contribuições`
       : `de ${formatDate(dataFimUltimo)}`;
-    resultado.motivo = `Em período de graça (art. 15 da Lei 8.213/91). Qualidade mantida até ${formatDate(graca.fimGraca)} — ${graca.meses} meses contados ${origemGraca} (termo em ${formatDate(graca.termo)}), acrescidos do prazo do art. 15, § 4º, que desloca a perda para o dia 16 do 2º mês seguinte.`;
+    resultado.motivo = `Em período de graça (art. 15 da Lei 8.213/91). Qualidade mantida até ${formatDate(graca.fimGraca)} — ${graca.meses} meses contados ${origemGraca} (termo em ${formatDate(graca.termo)}), acrescidos do prazo do art. 15, § 4º (perda no dia seguinte ao vencimento da contribuição do 2º mês seguinte: dia 15, ou o 1º dia útil depois).`;
   } else {
-    resultado.motivo = `Período de graça expirou em ${formatDate(graca.fimGraca)} — ${graca.meses} meses contados de ${formatDate(dataFimUltimo)}, já computado o prazo do art. 15, § 4º. Perda da qualidade de segurada antes do fato gerador.`;
+    resultado.motivo = `Período de graça expirou em ${formatDate(graca.fimGraca)} — ${graca.meses} meses contados ${graca.especial ? `do ${graca.especial.rotulo} em ${formatDate(graca.dataEspecial)} (art. 15, ${graca.especial.inciso})` : `de ${formatDate(dataFimUltimo)}`}, já computado o prazo do art. 15, § 4º. Perda da qualidade de segurada antes do fato gerador.`;
     resultado.contribAposPerda = contribuicoesAposPerda(vinculos, graca.fimGraca, dataParto);
     // QUALIDADE: basta 1 contribuição em dia após a perda para recuperar a qualidade
     // (art. 15, II, Lei 8.213/91 + regra geral do RGPS)
@@ -4100,7 +4172,7 @@ function renderDetalhesTecnicos(categoria, qualidade, dataParto, contribTotal, d
     fundamentos.push('Súmula 54/TNU; Súmula 149/STJ — exigência de início de prova material.');
   }
   if (categoria === 'desempregada' || $('#desemprego_involuntario').value === 'sim') {
-    fundamentos.push('Súmula 27/TNU; STJ, REsp 1.338.295/RS — desemprego involuntário comprovado por qualquer meio idôneo.');
+    fundamentos.push('Tema 1.360/STJ (REsp 2.169.736, 1ª Seção, Rel. Min. Afrânio Vilela, recurso repetitivo — notícia do STJ de 16/07/2026): o desemprego involuntário pode ser provado por qualquer meio admitido em direito, mas a mera ausência de anotação na CTPS e/ou no CNIS, isolada, não basta. Súmula 27/TNU; STJ, REsp 1.338.295/RS (Rel. Min. Sérgio Kukina, j. 25/11/2014).');
   }
   if (!qualidade.temQualidade && categoria !== 'especial' && qualidade.fimGraca) {
     const gestacaoIniciada = addMeses(dataParto, -9);
