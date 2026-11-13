@@ -1112,9 +1112,6 @@
       </div>
 
       <div class="panel">
-// v3.9.2 (22/09/2026): bloco do SEGURO-DESEMPREGO (art. 3º, I, da Lei 7.998/90) — conta os meses
-// de salario antes da dispensa e diz se ha extrato a buscar como prova do desemprego involuntario;
-// quando nao ha direito em nenhuma regua, avisa que a ausencia do seguro nao indica saida voluntaria.
         <div id="resultado-final-container"></div>
         <div id="alerta-consistencia-container"></div>
         <div id="seguro-desemprego-container"></div>
@@ -1138,13 +1135,19 @@
   <footer>
     <strong>ARRAIS ADVOGADOS · OAB/MG 19.391</strong> · Ferramenta de uso interno · Não substitui análise jurídica individualizada<br>
     Base normativa: Lei 8.213/91 · Lei 8.212/91 · IN PRES/INSS 128/2022 · STF, ADIs 2.110 e 2.111 (Rel. Min. Nunes Marques) · IN PRES/INSS 188/2025<br>
-    <span style="opacity:0.6">v3.9.2 · setembro/2026</span>
+    <span style="opacity:0.6">v3.9.3 · novembro/2026</span>
   </footer>
 </div>
 
 <script>
 // =====================================================================
-// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.9.2
+// CALCULADORA DE SALÁRIO-MATERNIDADE — ARRAIS ADVOGADOS v3.9.3
+// v3.9.3 (13/11/2026): o quadro do resultado mostra a DATA em que a qualidade de segurada vai (ou foi) até —
+//   fim do período de graça, já com o art. 15, § 4º (pedido da Ana Germano / Yuri: "não fala data"). Também
+//   tira da tela o comentário da v3.9.2, que tinha ficado no HTML e aparecia acima do resultado.
+// v3.9.2 (22/09/2026): bloco do SEGURO-DESEMPREGO (art. 3º, I, da Lei 7.998/90) — conta os meses
+// de salario antes da dispensa e diz se ha extrato a buscar como prova do desemprego involuntario;
+// quando nao ha direito em nenhuma regua, avisa que a ausencia do seguro nao indica saida voluntaria.
 // v3.9.1 (22/09/2026): recolhimento EM ATRASO de CI/facultativa/MEI so vale se a segurada ainda
 // mantinha a qualidade no dia do pagamento (art. 11, §§ 3º e 4º, do Decreto 3.048/99); atraso
 // anterior a primeira contribuicao sem atraso nao conta carencia (art. 27, II, da Lei 8.213/91).
@@ -3393,12 +3396,28 @@ function renderResultadoFinal(cenarioId, dataParto, qualidade, comp) {
     `;
   }
 
+  // Data da qualidade de segurada em destaque (v3.9.3): até quando vai / foi o período de graça.
+  let linhaQualidade = '';
+  const mesTexto = (d) => `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  if (qualidade.fimGraca && qualidade.emPeriodoDeGraca) {
+    linhaQualidade = `📅 <strong>Qualidade de segurada mantida até ${formatDate(qualidade.fimGraca)}</strong> — fim do período de graça (${qualidade.mesesGraca} meses + art. 15, § 4º, da Lei 8.213/91). A perda ocorre em ${formatDate(new Date(qualidade.fimGraca.getFullYear(), qualidade.fimGraca.getMonth(), qualidade.fimGraca.getDate() + 1))}.`;
+  } else if (qualidade.fimGraca && qualidade.temQualidade) {
+    linhaQualidade = `📅 <strong>O período de graça terminou em ${formatDate(qualidade.fimGraca)}</strong>, e a qualidade foi recuperada com contribuição posterior (veja os detalhes abaixo).`;
+  } else if (qualidade.fimGraca) {
+    linhaQualidade = `📅 <strong>Qualidade de segurada mantida só até ${formatDate(qualidade.fimGraca)}</strong> (fim do período de graça, com o art. 15, § 4º).`;
+  } else if (qualidade.temQualidade && qualidade.mesMinimoFiliacao) {
+    linhaQualidade = `📅 <strong>Vínculo/contribuição em curso:</strong> não há período de graça correndo. Se a filiação cessar, a última contribuição válida precisa ser de ${mesTexto(qualidade.mesMinimoFiliacao)} em diante para o período de graça ainda cobrir o parto.`;
+  } else if (qualidade.temQualidade) {
+    linhaQualidade = `📅 <strong>Vínculo/contribuição ativa na data do parto:</strong> a qualidade de segurada não depende de período de graça (sem data de fim enquanto o vínculo durar).`;
+  }
+
   $('#resultado-final-container').innerHTML = `
     ${avisoUrgencia}
     <div class="resultado-final ${c.cor}">
       <span class="resultado-icone">${c.icone}</span>
       <div class="resultado-titulo">${c.titulo}</div>
       <div class="resultado-subtitulo">${c.subtitulo}</div>
+      ${linhaQualidade ? `<div class="resultado-subtitulo" style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(0,0,0,.08)">${linhaQualidade}</div>` : ''}
     </div>
   `;
 }
